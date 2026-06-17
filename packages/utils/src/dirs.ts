@@ -27,7 +27,8 @@ export const CONFIG_DIR_NAME: string = ".omp";
 export const MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"] as const;
 
 /** Version (e.g. "1.0.0") */
-export const VERSION: string = version;
+const buildVersionOverride = process.env.PI_COMPILED === "true" ? process.env.OMP_BUILD_VERSION_OVERRIDE : undefined;
+export const VERSION: string = buildVersionOverride && buildVersionOverride.trim() ? buildVersionOverride : version;
 
 /** Default User-Agent header string (e.g. "omp/17.2.12") */
 export const USER_AGENT = `omp/${VERSION}`;
