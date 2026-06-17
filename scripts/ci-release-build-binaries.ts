@@ -131,6 +131,8 @@ async function buildBinary(target: BinaryTarget): Promise<void> {
 			"--keep-names",
 			"--define",
 			'process.env.PI_COMPILED="true"',
+			"--define",
+			`process.env.OMP_BUILD_VERSION_OVERRIDE=""`,
 			"--root",
 			".",
 			"--target",

@@ -1,258 +1,287 @@
-# Development Rules
+# Repository Guidelines
 
-## Default Context
+## Project Overview
 
-This repo contains multiple packages, but **`packages/coding-agent/`** is the primary focus. Unless otherwise specified, assume work refers to this package.
+Oh My Pi (`omp`) is a CLI coding agent that uses LLMs to read, write, edit, search, and execute code within your workspace. It provides an interactive terminal UI with tool-calling, multi-provider model support, LSP integration, MCP servers, subagent orchestration, and a Python RPC protocol for programmatic control.
 
-**Terminology**: When the user says "agent" or asks "why is agent doing X", they mean the **coding-agent package implementation**, not you (the assistant). The coding-agent is a CLI tool — questions about its behavior refer to code in `packages/coding-agent/`, not your current session.
+The repository is a **Bun + Rust monorepo** with a `packages/coding-agent/` TypeScript CLI at its core, backed by a Rust native addon (`crates/pi-natives/`) for performance-critical operations. Python packages in `python/` consume the CLI via its RPC mode.
 
-### Package Structure
+## Architecture & Data Flow
 
-| Package                 | Description                                          |
-| ----------------------- | ---------------------------------------------------- |
-| `packages/ai`           | Multi-provider LLM client with streaming support     |
-| `packages/catalog`      | Model catalog: bundled models.json, provider descriptors, model identity/classification |
-| `packages/agent`        | Agent runtime with tool calling and state management |
-| `packages/coding-agent` | Main CLI application (primary focus)                 |
-| `packages/tui`          | Terminal UI library with differential rendering      |
-| `packages/natives`      | Bindings for native text/image/grep operations       |
-| `packages/stats`        | Local observability dashboard (`omp stats`)          |
-| `packages/utils`        | Shared utilities (logger, streams, temp files)       |
-| `crates/pi-natives`     | Rust crate for performance-critical text/grep ops    |
-
-**Catalog import convention**: code in this repo imports catalog *values* (bundled models, model-thinking helpers, identity, descriptors, model manager/cache) from `@oh-my-pi/pi-catalog/<module>` — never via `@oh-my-pi/pi-ai`. The pi-ai barrel re-exports only the model/effort *types* its own signatures use (`Model`, `Api`, `ThinkingConfig`, `Effort`, …); type-only imports of those from `@oh-my-pi/pi-ai` are fine.
-
-## GitHub
-
-Unless user tells you exactly what to write:
-- **Never comment on GitHub** (issues, PRs, discussions).
-- **Never create issues on GitHub**.
-
-## Code Quality
-
-- No `any` unless absolutely necessary.
-- **NEVER use `ReturnType<>`** — use the actual type name.
-- **NEVER use inline imports** — no `await import()`, no `import("pkg").Type` in type positions, no dynamic type imports. Always top-level.
-- Check `node_modules` for external API types instead of guessing.
-- **Barrel exports**: prefer `export * from "./module"` over named re-exports, including `export type { ... } from`. In pure `index.ts` barrels, use star re-exports even for single-specifier cases. If stars create ambiguity, remove the redundant export path; do not keep duplicates.
-- **Class privacy**: use ES `#private` fields; leave externally accessible members bare. **No `private`/`protected`/`public` keyword on fields or methods**, except on **constructor parameter properties** where TypeScript requires it (e.g. `constructor(private readonly session: ToolSession)`).
-- **Promises**: use `Promise.withResolvers()` instead of `new Promise((resolve, reject) => ...)`.
-- **Prompts**: never build prompts in code (no inline strings, template literals, or concatenation). Prompts live in static `.md` files; use Handlebars for dynamic content. Import them via `import content from "./prompt.md" with { type: "text" }` — not `readFile`.
-- **Worker scripts**: workers re-enter the CLI entrypoint; never spawn separate worker entry modules. `cli.ts` declares itself as the worker host at startup (`declareWorkerHostEntry()` from `@oh-my-pi/pi-utils/env`) and dispatches hidden argv selectors (`__omp_worker_stats_sync`, `__omp_worker_tab`, `__omp_worker_js_eval`, `__omp_worker_tiny_inference`) before loading the command registry. Spawn sites use:
-  ```ts
-  import { workerHostEntry } from "@oh-my-pi/pi-utils";
-  const hostEntry = workerHostEntry();
-  const worker = hostEntry
-  	? new Worker(hostEntry, { type: "module", argv: ["__omp_worker_<name>"] })
-  	: new Worker(new URL("./<worker>.ts", import.meta.url).href, { type: "module" });
-  ```
-  When the process was started from the omp CLI — source `cli.ts`, npm-bundle `dist/cli.js`, or compiled binary — `workerHostEntry()` is `Bun.main` and the worker re-enters the single entry module, so no per-worker `--compile` entrypoints or bundle entries exist. Outside a CLI host (`bun test`, SDK embedding, standalone `omp-stats`) it returns `null` and the direct-module fallback loads the worker source. New worker kinds MUST add their selector to the dispatch table in `cli.ts` and keep the fallback branch.
-  History: `with { type: "file" }` only copied the entry as a raw asset (workers crashed silently in compiled binaries — issues #1011, #1027), and the later literal-path + extra-entrypoint pattern required keeping spawn literals and two build scripts in sync (issue #1150). The smoke probe below is the live validation of this contract.
-  Validate any new worker with the dedicated smoke probe: `omp --smoke-test` spawns the stats sync worker and the tiny-model subprocess, pings them, and exits — it's wired into `ci:test:smoke` and `scripts/install-tests/run-ci.sh` so binary, source-link, and tarball installs all exercise it. Add a sibling smoke if the new worker is on a different module graph.
-
-## Bun Over Node
-
-Use Bun APIs where they provide a cleaner alternative; fall back to `node:*` only for what Bun doesn't cover. **Never spawn shell commands for operations with proper APIs** (e.g., don't `Bun.spawnSync(["mkdir", "-p", dir])` — use `mkdirSync`).
-
-### Quick reference
-
-| Operation       | Use                                       | Not                             |
-| --------------- | ----------------------------------------- | ------------------------------- |
-| File read/write | `Bun.file()`, `Bun.write()`               | `readFileSync`, `writeFileSync` |
-| Spawn process   | `` $`cmd` ``, `Bun.spawn()`               | `child_process`                 |
-| Sleep           | `Bun.sleep(ms)`                           | `setTimeout` promise            |
-| Binary lookup   | `$which("git")` from `@oh-my-pi/pi-utils` | `spawnSync(["which", "git"])`   |
-| HTTP server     | `Bun.serve()`                             | `http.createServer()`           |
-| SQLite          | `bun:sqlite`                              | `better-sqlite3`                |
-| Hashing         | `Bun.hash()`, `Bun.password.*`, WebCrypto | `node:crypto`                   |
-| Path resolution | `import.meta.dir`, `import.meta.path`     | `fileURLToPath` dance           |
-| JSON5           | `Bun.JSON5.parse()` / `.stringify()`      | `json5` package                 |
-| JSONL           | `Bun.JSONL.parse()` / `.parseChunk()`     | `text.split("\n").map(JSON.parse)` |
-| String width    | `Bun.stringWidth()`                       | `get-east-asian-width`, custom  |
-| Text wrapping   | `Bun.wrapAnsi()`                          | custom ANSI-aware wrappers      |
-
-### Process execution
-
-Prefer Bun Shell (`` $`cmd` ``) for simple commands:
-
-```typescript
-import { $ } from "bun";
-
-const result = await $`git status`.cwd(dir).quiet().nothrow();
-if (result.exitCode === 0) {
-	const text = result.text();
-}
-
-$`do-stuff ${tmpFile}`.quiet().nothrow(); // fire and forget
+```
+User Input → CLI (cli.ts) → main.ts → AgentSession
+  → Agent (pi-agent-core) wraps state
+    → agentLoop() converts messages → calls pi-ai streamSimple()
+      → pi-ai dispatches to provider (Anthropic/OpenAI/Google/…)
+        → streaming events
+          → agent-loop processes tool calls → tool execution
+            → results fed back as toolResult → loop repeats
 ```
 
-Methods: `.quiet()`, `.nothrow()`, `.text()`, `.cwd(path)`.
+### Package Dependency Hierarchy
 
-Use `Bun.spawn`/`Bun.spawnSync` only for: long-running processes (LSP, kernels), streaming stdin/stdout/stderr (SSE, JSON-RPC), or process control (signals, kill, complex lifecycle).
-
-When using `pipe` mode, cast the stream:
-```typescript
-const child = Bun.spawn(["cmd"], { stdout: "pipe", stderr: "pipe" });
-const reader = (child.stdout as ReadableStream<Uint8Array>).getReader();
+```
+@oh-my-pi/pi-ai          Leaf — LLM providers, streaming, model resolution, auth
+@oh-my-pi/pi-agent-core  Depends on pi-ai, pi-natives, pi-utils — Agent class, loop, compaction
+@oh-my-pi/pi-coding-agent  Top-level — depends on everything; contains tools, TUI, CLI, MCP, LSP, sessions
+@oh-my-pi/pi-tui          Terminal UI engine — standalone
+@oh-my-pi/pi-natives      JS wrappers → Rust .node binary — compute-heavy ops
+@oh-my-pi/pi-utils        Shared utilities — logger, dirs, streams, temp files
+@oh-my-pi/pi-stats        Observability dashboard — standalone consumer
 ```
 
-### Node module imports
+### Key Runtime Patterns
 
-Always use **namespace imports** for `node:fs`, `node:path`, `node:os`:
+- **Event-driven**: `AgentSession` subscribes to `AgentEvent` stream from `agentLoop()`. Streams use `EventStream<T, TResult>` — push-based, async-iterable, with `.result()` for terminal value.
+- **Tool pattern**: Each tool is a class with `static name`, `description`, `parameters` (Zod schema), and `async execute(input, context)`. Tools are instantiated with constructor-injected dependencies. Registered via `createTools()`.
+- **State management**: Plain object mutation + event emission. No Redux/MobX. `Agent` wraps mutable `AgentState` with getters/setters. `AgentSession` extends with persistence hooks.
+- **Constructor DI**: Dependencies injected via constructor. Config objects flow through plain interfaces. No DI container.
 
-```typescript
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import * as os from "node:os";
+## Key Directories
+
+### TypeScript Packages
+
+| Directory | Package | Purpose |
+|---|---|---|
+| `packages/coding-agent/src/` | `@oh-my-pi/pi-coding-agent` | CLI app, tools, TUI mode, sessions, LSP, MCP, subagents, SDK |
+| `packages/ai/src/` | `@oh-my-pi/pi-ai` | LLM providers (50+), streaming, model resolution, auth, token usage |
+| `packages/agent/src/` | `@oh-my-pi/pi-agent-core` | Agent state machine, loop, compaction, telemetry, leak detection |
+| `packages/tui/src/` | `@oh-my-pi/pi-tui` | Differential terminal rendering, component tree, keyboard handling |
+| `packages/utils/src/` | `@oh-my-pi/pi-utils` | Logger, directory resolution, streams, temp files, glob, which |
+| `packages/natives/src/` | `@oh-my-pi/pi-natives` | JS loader → Rust native addon (text, search, syntax, keyboard, isolation) |
+| `packages/stats/src/` | `@oh-my-pi/pi-stats` | Session usage stats: SQLite, worker pool, React dashboard, Bun HTTP server |
+
+### Rust Crates
+
+| Directory | Purpose |
+|---|---|
+| `crates/pi-natives/` | Shim layer; core logic in sibling crates (`pi-ast`, `pi-iso`, `pi-shell`, `pi-search`) |
+| Key modules: `grep.rs` (ripgrep), `text.rs` (ANSI-aware measurement), `ast.rs` (ast-grep), `keys.rs` (kitty protocol), `tokens.rs` (tiktoken), `highlight.rs` (syntect) |
+
+### Python Packages
+
+| Directory | Purpose |
+|---|---|
+| `python/omp-rpc/` | Typed Python client for `omp --mode rpc`. Zero runtime deps. Imported by robomp and liaogong-symphony. |
+| `python/robomp/` | Self-hosted GitHub triage/fix bot. FastAPI + omp-rpc + SQLite + Docker. |
+| `python/liaogong_symphony/` | Unattended work conductor. FastAPI + omp-rpc + SQLite + pull-based worker leases. |
+
+### Other
+
+| Directory | Purpose |
+|---|---|
+| `scripts/` | Build infra (`ci-build-native.ts`), release scripts, dev utilities, session-stats Python scripts |
+| `docs/` | Markdown docs: tools reference, TUI internals, session, skills, models, SSH |
+| `.omp/` | Local harness state (rules, skills, tools, commands) |
+
+## Development Commands
+
+All commands run from the repo root.
+
+### Install
+
+```bash
+bun install --frozen-lockfile
 ```
 
-- Async-only file → `node:fs/promises`.
-- Needs both sync and async → `node:fs`, then `fs.promises.xxx` for async.
+### Build
 
-### File I/O
-
-Prefer Bun:
-```typescript
-const text = await Bun.file(path).text();
-const data = await Bun.file(path).json();
-await Bun.write(path, data); // auto-creates parent dirs
+```bash
+bun run build              # workspace build (--if-present)
+bun run build_native       # Rust native addon only
 ```
 
-Use `node:fs/promises` for directory ops (`fs.mkdir`, `fs.rm`, `fs.readdir`) — Bun has no native directory APIs. Avoid sync APIs in async flows; use sync only when forced by a synchronous interface.
+### Type Check
 
-**Anti-patterns:**
-- `existsSync`/`readFileSync`/`writeFileSync` in async code → `Bun.file()` APIs.
-- `mkdir(dirname(path), …)` before `Bun.write(path, …)` → redundant; `Bun.write` handles it.
-- `if (await file.exists()) { await file.json() }` → two syscalls plus race. Use try-catch with `isEnoent`:
-  ```typescript
-  import { isEnoent } from "@oh-my-pi/pi-utils";
-  try {
-  	return await Bun.file(path).json();
-  } catch (err) {
-  	if (isEnoent(err)) return null;
-  	throw err;
-  }
-  ```
-- Multiple `Bun.file(path)` handles for the same path (including across `checkX`/`loadX` helpers).
-- `Buffer.from(await Bun.file(x).arrayBuffer())` → `await fs.readFile(path)`.
-- Existence check + try-catch around the same read → drop the existence check.
-
-### Streams
-
-Prefer centralized helpers:
-```typescript
-import { readStream, readLines } from "./utils/stream";
-const text = await readStream(child.stdout);
-for await (const line of readLines(stream)) { /* ... */ }
-```
-Manual reader loops only when the protocol requires it (SSE, streaming JSON-RPC).
-
-### Misc
-
-- **Sleep**: `await Bun.sleep(ms)`, never `new Promise(r => setTimeout(r, ms))`.
-- **Password hashing**: `Bun.password.hash(pw, "bcrypt")` / `Bun.password.verify(pw, hash)`.
-- **String width**: `Bun.stringWidth(text, { countAnsiEscapeCodes?: false })`.
-- **Wrapping**: `Bun.wrapAnsi(text, width, { wordWrap, hard, trim })`.
-
-## Generated Files
-
-**NEVER edit `packages/catalog/src/models.json` directly.** It is generated from upstream sources (models.dev, provider catalog discovery, OpenCode docs) by `packages/catalog/scripts/generate-models.ts` and the descriptors/resolvers in `packages/catalog/src/provider-models/`. Hand-edits get overwritten on the next regen.
-
-To change an entry, fix the source:
-- **Resolution rules / per-id overrides** → relevant resolver in `packages/catalog/src/provider-models/openai-compat.ts` (e.g. `createOpenCodeApiResolution`'s id-override map).
-- **Provider catalog entries** (default model, discovery factory/flags) → the `CATALOG_PROVIDERS` table in `packages/catalog/src/provider-models/descriptors.ts`.
-- **Generator-level fixups** (premium multipliers, codex pricing fallback, fallback models, post-processing) → `packages/catalog/scripts/generate-models.ts`.
-- **Thinking metadata / generated policies** → `packages/catalog/src/model-thinking.ts` (`applyGeneratedModelPolicies`); model-id classification (family/version parsing) lives in `packages/catalog/src/identity/classify.ts`.
-
-Regenerate with `bun run gen:models` and commit `models.json` alongside the source change. Add a regression test against the **resolver/descriptor**, not the bundled JSON, so it survives upstream metadata shifts.
-
-## Logging
-
-**NEVER use `console.log`/`error`/`warn`** in the coding-agent package — it corrupts TUI rendering. Use the centralized logger:
-
-```typescript
-import { logger } from "@oh-my-pi/pi-utils";
-
-logger.error("MCP request failed", { url, method });
-logger.warn("Theme file invalid, using fallback", { path });
-logger.debug("LSP fallback triggered", { reason });
+```bash
+bun run check              # parallel: ts + rs
+bun run check:ts           # Biome + per-package bun check
+bun run check:rs           # cargo fmt --check + clippy -D warnings
 ```
 
-Logs go to `~/.omp/logs/omp.YYYY-MM-DD.log` with automatic rotation.
+Never use `tsc`/`npx tsc` — always `bun check`.
 
-## TUI Sanitization
+### Test
 
-All text displayed in tool renderers must be sanitized. Raw content (file contents, error messages, tool output) breaks terminal rendering: tabs → visual holes, long lines → overflow, paths → leak home directory.
+```bash
+bun run test               # parallel: ts + rs + py
+bun run test:ts            # bun test --only-failures
+bun run test:rs            # cargo nextest (not cargo test)
+bun run test:py            # pytest for all Python packages
+```
 
-**Rules:**
-- **Tabs → spaces** via `replaceTabs()` (from `@oh-my-pi/pi-tui` or `../tools/render-utils`).
-- **Truncate** lines with `truncateToWidth()` / `ui.truncate()`. Use `TRUNCATE_LENGTHS` constants.
-- **Shorten paths** with `shortenPath()` (replaces home with `~`).
-- **Preview limits** from `PREVIEW_LIMITS`. No ad-hoc numbers.
+### Lint & Format
 
-**Apply to every render path**, not just the happy one:
-- Success output (file previews, command output, search results).
-- **Error messages** — these often embed file content (e.g., patch failure messages include unmatched lines). If a message contains file content, it needs `replaceTabs()`.
-- Diff content (added and removed).
-- Streaming previews.
+```bash
+bun run lint               # biome lint + cargo clippy
+bun run lint:py            # ruff check + ruff format
+bun run fmt                # biome format --write + cargo fmt
+bun run fix                # auto-fix ts + rs
+```
 
-### Streaming tool previews
+### Specific scopes
 
-Tool-call previews can have **multiple render paths**. If you add preview-only fields or depend on partially streamed args, update every path — not only the final renderer.
+```bash
+bun --cwd=packages/ai run test          # run one package's tests
+bun --cwd=packages/coding-agent run check  # typecheck one package
+cargo test -p pi-natives                 # run Rust tests only
+```
 
-For the bash tool specifically:
-- The pending preview may need raw `partialJson`, not just parsed `arguments`. Parsed args lag until a JSON object closes, which makes inline env assignments appear only at the end.
-- Preserve preview-only fields (e.g. `__partialJson`) through `event-controller.ts`, transcript rebuilds in `ui-helpers.ts`, and merged call/result rendering in `tool-execution.ts`. Missing one path causes inconsistent previews.
-- `ToolExecutionComponent.#buildRenderContext()` for bash must work even before a result exists — the renderer uses call args plus render context to show the command preview while streaming.
-- Verify both live streaming and rebuilt transcript paths after any bash preview change. A fix in one path does not fix the other.
+### Python packages
 
-## Commands
+```bash
+bun run robomp:install            # pip install -e 'python/robomp[dev]'
+bun run liaogong:install          # pip install -e 'python/liaogong_symphony[dev]'
+bun run robomp:serve              # start robomp server
+bun run liaogong:serve            # start symphony conductor + local worker
+```
 
-- NEVER commit unless asked.
-- Never use `tsc`/`npx tsc` — always `bun check`.
+## Code Conventions & Common Patterns
 
-## Testing Guidance
+### TypeScript
 
-Test the contract the system exposes — not the easiest internal detail to assert.
+- **Runtime**: Bun 1.3.14. Use Bun APIs (`Bun.file()`, `Bun.write()`, `$` shell) over Node alternatives.
+- **Target**: ES2024, ESNext modules, Bundler resolution, strict mode, `verbatimModuleSyntax`.
+- **Formatting/Linting**: Biome 2.4.16 (primary), Prettier 3.8.3. No ESLint.
+- **No `any`** unless absolutely necessary. Never `ReturnType<>`. Never inline `import()`.
+- **Barrel exports**: `export * from "./module"` — even for single specifiers.
+- **Class privacy**: ES `#private` fields. No `private`/`public` keywords on fields, except constructor parameter properties.
+- **Async**: `Promise.withResolvers()` over `new Promise(...)`.
+- **Prompts**: Static `.md` files with Handlebars. Import via `import content from "./prompt.md" with { type: "text" }`. Never inline.
+- **Logging**: Centralized Winston logger (`import { logger } from "@oh-my-pi/pi-utils"`). Never `console.log` in coding-agent — it corrupts TUI rendering.
+- **Worker scripts**: Use the dev/compile-safe hybrid pattern (`isCompiledBinary()` check). Never `with { type: "file" }`. Must be listed in `packages/coding-agent/scripts/build-binary.ts`.
+- **Node imports**: Namespace imports (`import * as fs from "node:fs/promises"`).
+- **File I/O**: Prefer `Bun.file()`, `Bun.write()` for reads/writes. `node:fs/promises` for directory ops. Use `try/catch` + `isEnoent()`; never existence-check-then-read.
+- **Process execution**: Bun Shell (`` $`cmd` ``) for simple commands. `Bun.spawn()` for streaming/interactive. `$which()` from `@oh-my-pi/pi-utils` for binary lookup.
+- **TUI sanitization**: All displayed text must be tab-replaced (`replaceTabs()`), truncated (`truncateToWidth()`), and path-shortened (`shortenPath()`).
 
-- Every new test must defend one **concrete, externally observable contract**: behavior, output shape, state transition, error mapping, or a regression-prone parsing boundary. If you cannot name the contract, do not add the test.
-- No placeholder tests, tautologies, or "the code ran" assertions (`expect(true).toBe(true)`, bare `not.toThrow()`, non-empty string checks, length-grew checks, "prompt exists" checks without semantic assertion).
-- Prefer contract-level tests over implementation details. Avoid asserting internal helper wiring, field assignment, singleton identity, incidental ordering, prompt boilerplate, or passthrough option forwarding unless another component depends on that exact detail.
-- Don't duplicate coverage across abstraction levels. If an integration test already proves the behavior, drop the narrower unit test that restates it through mocks.
-- Tests **must be full-suite safe**, not just file-local safe. No long-lived file-wide mutations of `Bun.*`, `process.platform`, `process.env`, or `Bun.env` when a narrower seam exists. Prefer per-test `vi.spyOn(...)` with `vi.restoreAllMocks()` in `afterEach`. A test that passes alone but poisons later files is broken.
-- **Never use `mock.module()`**. Bun's `mock.module()` mutates the global module registry and leaks across files ([oven-sh/bun#12823](https://github.com/oven-sh/bun/issues/12823)). Use `spyOn` on the imported module object instead. For pass deps, import the pass and spy on `.run`. For package deps, namespace-import and spy on the exported function.
-- For lifecycle/stateful code, prefer one test per invariant or transition over several tiny tests asserting one field each from the same transition.
-- For error handling, trigger the real failure path and assert the surfaced contract — don't instantiate error classes directly or inspect internal metadata.
-- Smoke tests are acceptable only when they catch a failure mode narrower tests would miss. "Package boots" or "command starts" alone is not enough.
-- Assert exact strings, ordering, and formatting only when downstream code parses or depends on the exact bytes. Otherwise assert semantic content.
-- Compile-time guarantees → type checks/type tests, not runtime placeholders.
-- **Never source-grep.** A test that reads an implementation file (`.ts`/`.rs`/build script) and asserts on its *text* — `expect(src).toContain("someCall()")`, `.toMatch(/import .../)`, `.not.toContain("oldName")`, or "comment must say X" — is banned. It tests how code *looks*, not what it *does*: it breaks on harmless refactors (comment reflow, rename, import reorder) and passes while the behavior is broken. Assert the observable contract instead (run the code, check output/state/error), use the runtime smoke probe for wiring you cannot exercise in-process, and enforce structural invariants (no value-import of X, no self-import) with a type test or a lint/biome rule — never a string scan of the source. (Reading a file your code *wrote* — apply-patch result, generated bundle, temp fixture — and asserting on that output is fine; that is behavior, not a source grep.)
-- Don't add tests for tiny low-risk changes unless they protect a real contract or fix a regression-prone edge case.
-- Prefer focused package-local verification for the changed area.
+### Rust
 
-## Changelog
+- **Edition**: 2024, resolver 3, nightly-2026-04-29 toolchain.
+- **Binding pattern**: `#[napi]` macros → `.node` binary → JS platform-aware loader. Async work via `AsyncTask` on libuv thread pool. Cached state in `LazyLock` globals.
+- **Formatting/Linting**: `cargo fmt` + `cargo clippy -D warnings`.
+- **Testing**: `cargo nextest run --workspace` (not `cargo test`).
+- **Key deps**: napi-rs v3, tokio, tree-sitter (40+ grammars), syntect, ripgrep crate family, tiktoken-rs, portable-pty.
 
-Location: `packages/*/CHANGELOG.md` (per package).
+### Python
 
-**Format** — sections under `## [Unreleased]`:
-- `### Breaking Changes` (first if present)
-- `### Added`
-- `### Changed`
-- `### Fixed`
-- `### Removed`
+- **Build**: setuptools via pyproject.toml.
+- **Type hints**: `py.typed` marker for PEP 561 compliance.
+- **Config**: `pydantic-settings BaseSettings` with env prefix per package.
+- **CLI**: Click with `serve`/`worker`/`status` subcommands.
+- **Formatting/Linting**: Ruff (line-length 120, double quotes).
+- **Testing**: `pytest` with `asyncio_mode=auto`. Integration tests gated behind env flags (`ROBOMP_INTEGRATION=1`, `LIAOGONG_SYMPHONY_INTEGRATION=1`).
+- **State**: WAL-mode SQLite via stdlib `sqlite3`.
+- **HTTP**: FastAPI + uvicorn for server surfaces.
 
-**Rules:**
-- New entries always go under `## [Unreleased]`.
-- Never modify already-released sections (e.g., `## [0.12.2]`) — they are immutable.
-- Don't flag changelog section order or formatting in reviews or PRs — `bun run release` runs `fix-changelogs` which normalizes everything automatically.
+### Cross-cutting
 
-**Attribution:**
-- Internal (from issues): `Fixed foo bar ([#123](https://github.com/can1357/oh-my-pi/issues/123))`.
-- External contributions: `Added feature X ([#456](https://github.com/can1357/oh-my-pi/pull/456) by [@username](https://github.com/username))`.
+- **Models config**: `packages/ai/src/models.json` is generated — never edit directly. Regenerate with `bun --cwd=packages/ai run generate-models`.
+- **Changelog**: Per-package `CHANGELOG.md` under `## [Unreleased]`. Released sections are immutable.
+- **Releasing**: `bun run release` handles version bump, changelog finalization, commit, tag, publish.
 
-## Releasing
+## Important Files
 
-1. Ensure all changes since last release are in each affected package's `[Unreleased]` section.
-2. Run `bun run release`.
+### Entry Points
 
-The script handles version bump, CHANGELOG finalization, commit, tag, publish, and adding new `[Unreleased]` sections.
+| File | Purpose |
+|---|---|
+| `packages/coding-agent/src/cli.ts` | CLI entry — subcommand registration, smoke tests |
+| `packages/coding-agent/src/main.ts` | Bootstrap — session creation, mode selection, LSP/MCP init |
+| `packages/coding-agent/src/sdk.ts` | Public SDK for programmatic usage |
+| `packages/coding-agent/src/index.ts` | Package barrel export |
+| `packages/agent/src/agent.ts` | `Agent` class (1276 lines) — core state machine |
+| `packages/agent/src/agent-loop.ts` | `agentLoop()` (1491 lines) — LLM interaction orchestration |
+| `packages/ai/src/stream.ts` | `streamSimple()` (1100 lines) — central provider dispatch |
+| `packages/ai/src/types.ts` | Core AI types — `Model`, `Message`, `Context`, `StreamOptions` |
+| `python/omp-rpc/src/omp_rpc/client.py` | `RpcClient` (1797 lines) — Python RPC driver |
+| `python/robomp/src/server.py` | FastAPI GitHub webhook receiver |
+
+### Key Large Files
+
+| File | Lines | Role |
+|---|---|---|
+| `packages/coding-agent/src/session/agent-session.ts` | 9863 | Central session orchestrator |
+| `packages/coding-agent/src/session/session-manager.ts` | ~118K | Session lifecycle |
+| `packages/coding-agent/src/modes/interactive-mode.ts` | ~113K | Interactive TUI mode |
+| `packages/coding-agent/src/config/settings-schema.ts` | ~101K | Settings schema |
+| `packages/coding-agent/src/tools/gh.ts` | ~106K | GitHub tools |
+| `packages/coding-agent/src/tools/read.ts` | ~92K | File reading tool |
+| `packages/coding-agent/src/task/Executor.ts` | ~58K | Subagent executor |
+| `packages/coding-agent/src/mcp/Manager.ts` | ~42K | MCP server lifecycle |
+| `packages/coding-agent/src/lsp/index.ts` | ~79K | LSP client library |
+| `packages/ai/src/auth-storage.ts` | ~181K | Credential/auth storage |
+| `packages/ai/src/provider-models/openai-compat.ts` | ~100K | Model catalog |
+
+### Config Files
+
+| File | Purpose |
+|---|---|
+| `package.json` | Workspace root — scripts, workspaces, catalog deps |
+| `tsconfig.base.json` | Shared TS config (ES2024, Bundler, strict) |
+| `packages/tsconfig.workspace.json` | Packages-wide TS config |
+| `tsconfig.tools.json` | Scripts + natives helper config |
+| `Cargo.toml` | Rust workspace (edition 2024, resolver 3) |
+| `bun.lock` | Lockfile (bun) |
+
+## Runtime & Tooling Preferences
+
+- **Runtime**: Bun 1.3.14. Node.js only used in CI for npm publishing.
+- **Package manager**: Bun (not pnpm/npm/yarn). `bun.lock` lockfile.
+- **TypeScript checker**: `bun check` (not `tsc`).
+- **TS formatter/linter**: Biome, not ESLint.
+- **Rust tester**: `cargo nextest`, not `cargo test`.
+- **Binary compilation**: `bun build --compile` via `scripts/ci-release-build-binaries.ts`.
+- **Cross-compile**: Zig 0.16.0 for native binary builds.
+- **CI**: GitHub Actions, ubuntu-22.04 (primary), macos-14, macos-15-intel, ubuntu-24.04-arm.
+- **Docker**: Python packages extend `oh-my-pi/pi:dev` base image.
+
+## Testing & QA
+
+### Running tests
+
+```bash
+bun run test              # Full suite (ts + rs + py)
+bun run test:ts           # TypeScript only (bun test)
+bun run test:rs           # Rust only (cargo nextest)
+bun run test:py           # Python only (pytest)
+```
+
+### Frameworks
+
+| Language | Framework | Location Convention |
+|---|---|---|
+| TypeScript | `bun test` | `packages/*/__tests__/` or `*.test.ts` |
+| Rust | `cargo nextest` | Inline `#[cfg(test)] mod tests` or `crates/*/tests/` |
+| Python | `pytest` + `pytest-asyncio` | `python/*/tests/` |
+
+### Code quality checks
+
+```bash
+bun run check             # Full typecheck (ts + rs)
+bun run lint              # Full lint (ts + rs)
+bun run fix               # Auto-fix (ts + rs)
+```
+
+### Smoke test
+
+```bash
+bun packages/coding-agent/src/cli.ts --smoke-test
+```
+
+Validates binary can spawn the stats sync worker and ping it. Run after worker changes.
+
+### Key conventions
+
+- Never suppress tests to make code pass.
+- Prefer contract-level tests over implementation details.
+- Never `mock.module()` — leaks across files in Bun (issue #12823). Use `vi.spyOn()`.
+- Python integration tests are gated behind env flags.
+- Tests must be full-suite safe — no file-wide mutations of `Bun.*`, `process.env`, or `process.platform`.
+
+### CI pipeline (release)
+
+```
+gate → rust-hash → check + native_linux + native_release
+  → test + install_methods → release_binary → release-github → release_github_verify → release-npm
+```
