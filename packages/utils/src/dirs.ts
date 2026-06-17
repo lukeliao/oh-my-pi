@@ -23,7 +23,8 @@ export const APP_NAME: string = "omp";
 export const CONFIG_DIR_NAME: string = ".omp";
 
 /** Version (e.g. "1.0.0") */
-export const VERSION: string = version;
+const buildVersionOverride = process.env.PI_COMPILED === "true" ? process.env.OMP_BUILD_VERSION_OVERRIDE : undefined;
+export const VERSION: string = buildVersionOverride && buildVersionOverride.trim() ? buildVersionOverride : version;
 
 /** Minimum Bun version */
 export const MIN_BUN_VERSION: string = engines.bun.replace(/[^0-9.]/g, "");
