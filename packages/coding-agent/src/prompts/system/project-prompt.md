@@ -9,7 +9,7 @@ PROJECT
 <repo-rules>
 MUST follow these context files for all tasks:
 {{#each contextFiles}}
-<file path="{{path}}">
+<file path="{{path}}"{{#if frontmatter.type}} type="{{frontmatter.type}}"{{/if}}{{#if frontmatter.tags}} tags="{{frontmatter.tags}}"{{/if}}>
 {{content}}
 </file>
 {{/each}}

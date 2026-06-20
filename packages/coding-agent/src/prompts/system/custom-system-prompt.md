@@ -11,7 +11,7 @@
 ## Context
 <instructions>
 {{#list contextFiles join="\n"}}
-<file path="{{path}}">
+<file path="{{path}}"{{#if frontmatter.type}} type="{{frontmatter.type}}"{{/if}}{{#if frontmatter.tags}} tags="{{frontmatter.tags}}"{{/if}}>
 {{content}}
 </file>
 {{/list}}
