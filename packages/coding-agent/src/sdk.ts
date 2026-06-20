@@ -193,6 +193,7 @@ import {
 	composeAppendPrompt,
 	loadProjectContextFiles as loadContextFilesInternal,
 	projectSystemPromptToolMetadata,
+	type ProjectContextFile,
 } from "./system-prompt";
 import { AgentOutputManager } from "./task/output-manager";
 import { wrapStreamFnWithProviderConcurrency } from "./task/provider-concurrency";
@@ -897,14 +898,10 @@ export async function discoverSkills(
 }
 
 /**
- * Discover context files (AGENTS.md) walking up from cwd.
+ * Discover context files (AGENTS.md and index.md) walking up from cwd.
  * Returns files sorted by depth (farther from cwd first, so closer files appear last/more prominent).
  */
-export async function discoverContextFiles(
-	cwd?: string,
-	_agentDir?: string,
-	disabledExtensions?: string[],
-): Promise<Array<{ path: string; content: string; depth?: number }>> {
+export async function discoverContextFiles(cwd?: string, _agentDir?: string): Promise<ProjectContextFile[]> {
 	return await loadContextFilesInternal({
 		cwd: cwd ?? getProjectDir(),
 		disabledExtensions,

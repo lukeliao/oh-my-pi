@@ -8,6 +8,16 @@ import * as path from "node:path";
 import { defineCapability } from ".";
 import type { SourceMeta } from "./types";
 
+export interface ContextFileFrontmatter {
+	/** OKF-inspired concept type, e.g. ModuleOverview or SystemDesign */
+	type?: string;
+	title?: string;
+	description?: string;
+	resource?: string;
+	tags?: string[];
+	timestamp?: string;
+}
+
 /**
  * A context file that provides persistent instructions to the agent.
  */
@@ -22,6 +32,8 @@ export interface ContextFile {
 	depth?: number;
 	/** Source metadata */
 	_source: SourceMeta;
+	/** Optional machine-readable metadata parsed from YAML frontmatter */
+	frontmatter?: ContextFileFrontmatter;
 }
 
 export const contextFileCapability = defineCapability<ContextFile>({
@@ -30,10 +42,13 @@ export const contextFileCapability = defineCapability<ContextFile>({
 	description: "Persistent instruction files (CLAUDE.md, AGENTS.md, etc.) that guide agent behavior",
 	// Deduplicate by scope: one user-level file, and one project-level file per directory depth.
 	// Within each depth level, higher-priority providers shadow lower-priority ones.
-	// This supports monorepo hierarchies where AGENTS.md exists at multiple ancestor levels.
-	// Clamp depth >= 0: files inside config subdirectories of an ancestor (e.g. .claude/, .github/)
-	// are same-scope as the ancestor itself.
-	key: file => (file.level === "user" ? "user" : `project:${Math.max(0, file.depth ?? 0)}`),
+	// OKF index.md files are concept gateways and must coexist with same-depth AGENTS.md.
+	key: file =>
+		file.level === "user"
+			? "user"
+			: path.basename(file.path).toLowerCase() === "index.md"
+				? `project-index:${path.resolve(file.path)}`
+				: `project:${Math.max(0, file.depth ?? 0)}`,
 	toExtensionId: file => `context-file:${file.level}:${path.basename(file.path)}`,
 	validate: file => {
 		if (!file.path) return "Missing path";
