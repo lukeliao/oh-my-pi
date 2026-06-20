@@ -266,4 +266,88 @@ describe("SYSTEM.md prompt assembly", () => {
 		const matches = promptText.match(new RegExp(escapeRegExp(sharedContent), "g")) ?? [];
 		expect(matches).toHaveLength(1);
 	});
+	it("strips YAML frontmatter and renders metadata on context file tags", async () => {
+		const projectDir = path.join(tempDir, "project");
+		fs.mkdirSync(projectDir, { recursive: true });
+		fs.writeFileSync(
+			path.join(projectDir, "AGENTS.md"),
+			"---\ntype: ModuleOverview\ntags: [workspace, routing]\n---\n# Project Instructions\n",
+		);
+
+		const contextFiles = await loadProjectContextFiles({ cwd: projectDir });
+		const projectContext = contextFiles.find(file => file.path === path.join(projectDir, "AGENTS.md"));
+
+		expect(projectContext?.content).toBe("# Project Instructions\n");
+		expect(projectContext?.frontmatter?.type).toBe("ModuleOverview");
+		expect(projectContext?.frontmatter?.tags).toEqual(["workspace", "routing"]);
+
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: projectDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+
+		expect(promptText).toContain(
+			`<file path="${path.join(projectDir, "AGENTS.md")}" type="ModuleOverview" tags="workspace,routing">`,
+		);
+		expect(promptText).toContain("# Project Instructions");
+		expect(promptText).not.toContain("type: ModuleOverview");
+	});
+
+	it("keeps directory index and prunes only sibling OKF concept files", async () => {
+		const contextFiles = [
+			{ path: path.join(tempDir, "product_doc", "index.md"), content: "Product index", depth: 0 },
+			{
+				path: path.join(tempDir, "product_doc", "concept.md"),
+				content: "Product concept",
+				depth: 0,
+				frontmatter: { type: "SystemDesign" },
+			},
+			{ path: path.join(tempDir, "product_doc", "CLAUDE.md"), content: "Claude rules", depth: 0 },
+			{ path: path.join(tempDir, "product_doc", "AGENTS.md"), content: "Product rules", depth: 0 },
+			{ path: path.join(tempDir, "AGENTS.md"), content: "Root rules", depth: 1 },
+		];
+
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: tempDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+
+		expect(promptText).toContain("Product index");
+		expect(promptText).toContain("Product rules");
+		expect(promptText).toContain("Claude rules");
+		expect(promptText).toContain("Root rules");
+		expect(promptText).not.toContain("Product concept");
+	});
+
+	it("does not render invalid frontmatter metadata attributes", async () => {
+		const contextFiles = [
+			{
+				path: path.join(tempDir, "AGENTS.md"),
+				content: "Project rules",
+				depth: 0,
+				frontmatter: { type: 'Bad"Type', tags: ["safe", "bad<tag"] },
+			},
+		];
+
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: tempDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+
+		expect(promptText).toContain(`<file path="${path.join(tempDir, "AGENTS.md")}">`);
+		expect(promptText).not.toContain('Bad"Type');
+		expect(promptText).not.toContain("bad<tag");
+	});
 });
