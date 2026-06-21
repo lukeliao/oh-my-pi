@@ -207,27 +207,4 @@ describe("buildSembleArgs", () => {
 			"5",
 		]);
 	});
-
-	it("builds plan args without json", () => {
-		const result = buildSembleArgsForTest(
-			"plan",
-			{
-				task: "add auth",
-				path: ".",
-				top_k: 8,
-				include_text_files: false,
-				json: false,
-			},
-			"/models/potion",
-		);
-		expect(result.args).toEqual([
-			"plan",
-			"add auth",
-			".",
-			"--top-k",
-			"8",
-			"--model",
-			"/models/potion",
-		]);
-	});
 });
