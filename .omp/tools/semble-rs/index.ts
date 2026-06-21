@@ -218,26 +218,6 @@ function buildSembleArgs(
 			if (p.include_text_files) args.push("--include-text-files");
 			return { args };
 		}
-		case "plan": {
-			const p = params as {
-				task: string;
-				path: string;
-				top_k: number;
-				include_text_files: boolean;
-				json: boolean;
-			};
-			const args = [
-				"plan",
-				p.task,
-				p.path,
-				"--top-k",
-				String(p.top_k),
-			];
-			if (modelPath) args.push("--model", modelPath);
-			if (p.include_text_files) args.push("--include-text-files");
-			if (p.json) args.push("--json");
-			return { args };
-		}
 		case "find-related": {
 			const p = params as {
 				file_path: string;
@@ -306,7 +286,6 @@ const SEMANTIC_TIMEOUT_MS = 180_000;
 const SEMANTIC_COMMANDS: Record<string, true> = {
 	search: true,
 	"find-related": true,
-	plan: true,
 };
 
 interface RunSembleOptions {
@@ -551,7 +530,7 @@ const factory: CustomToolFactory = (pi) => {
 			name: "semble_digest",
 			label: "semble digest",
 			description:
-				"Strip noise from build/test/CI output. Use when you have raw compiler logs, test failures, or CI output that you need to summarize before reporting to the user.",
+				"Strip noise from build/test/CI output. TRUST the tool output directly — it already filters compilation noise and keeps only errors and warnings. Do not re-summarize; use the raw tool result as-is.",
 			strict: true,
 			approval: "read" as const,
 			parameters: pi.zod
@@ -822,57 +801,6 @@ const factory: CustomToolFactory = (pi) => {
 			},
 		},
 
-		// ── semble_plan ────────────────────────────────────────────
-		{
-			name: "semble_plan",
-			label: "semble plan",
-			description:
-				"Suggest the most relevant files to read for a given task using semantic search. Use at the START of a new task to build a reading list — saves you from reading unrelated files. Returns scored file:line chunks.",
-			strict: true,
-			approval: "read" as const,
-			parameters: pi.zod
-				.object({
-					task: pi.zod.string().min(1),
-					path: pi.zod.string().default("."),
-					top_k: pi.zod
-						.number()
-						.int()
-						.min(1)
-						.max(50)
-						.default(8),
-					include_text_files: pi.zod.boolean().default(false),
-					json: pi.zod.boolean().default(false),
-					model_path: pi.zod.string().optional(),
-				})
-				.strict(),
-
-			async execute(
-				_toolCallId: string,
-				params: Record<string, unknown>,
-				_onUpdate: unknown,
-				_ctx: unknown,
-				signal?: AbortSignal,
-			) {
-				const p = params as { model_path?: string };
-				const modelResult = resolveModelPath(p.model_path);
-				if (!modelResult.ok) {
-					return {
-						isError: true,
-						content: [
-							{ type: "text", text: modelResult.message },
-						],
-						details: { error: modelResult.message },
-					};
-				}
-				const result = await runSemble(
-					"plan",
-					params,
-					modelResult.path,
-					{ cwd: pi.cwd, signal },
-				);
-				return wrapResult(result);
-			},
-		},
 
 		// ── semble_find_related ────────────────────────────────────
 		{
