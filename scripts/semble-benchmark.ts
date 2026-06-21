@@ -69,13 +69,6 @@ const TASKS: Task[] = [
     baselineTool: "grep",
   },
   {
-    name: "plan",
-    prompt:
-      "I need to add a new robot vendor bridge for a new brand. What files should I read first? Use an exploration planning tool that recommends relevant files.",
-    targetTool: "semble_plan",
-    baselineTool: "manual",
-  },
-  {
     name: "digest",
     prompt:
       "Compress this build output: 'Compiling src/foo.cpp... error: undefined reference to bar in line 42\\nCompiling src/baz.cpp... warning: unused variable x\\nLinking target... FAILED: 2 errors, 1 warning'. Use a digest tool for build/test/CI output.",
