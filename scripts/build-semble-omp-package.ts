@@ -69,7 +69,7 @@ for (const f of requiredModelFiles) {
 // Output directory
 const outDir = (flags["out-dir"] as string)
 	? path.resolve(flags["out-dir"] as string)
-	: "/media/liao/storage/omp-semble-bundles";
+	: path.join(process.env.HOME ?? "/tmp", ".local", "share", "omp-semble-bundles");
 
 const platformArch = `${process.platform}-${process.arch}`;
 const bundleName = `omp-semble-${version}-${platformArch}`;
@@ -242,7 +242,7 @@ cp "\$ROOT/tools/semble-rs/index.ts" "\$AGENT_DIR/tools/semble-rs/index.ts"
 cp "\$ROOT/skills/semble-omp-packaging/SKILL.md" "\$AGENT_DIR/skills/semble-omp-packaging/SKILL.md"
 
 if [ ! -f "\$AGENT_DIR/config.yml" ]; then
-	cat > "\$AGENT_DIR/config.yml" << '"'"'EOF'"'"'
+	cat > "\$AGENT_DIR/config.yml" << 'EOF'
 tools:
   discoveryMode: off
 EOF
