@@ -49,3 +49,37 @@ bun scripts/semble-benchmark.ts --workspace /home/liao/workspace/robotbridges --
 ```
 
 The script runs each task with `omp` (without sembre tools) and `omp-semble` (with sembre tools), comparing total session tokens and whether the target tool was selected.
+
+## Audit: semble_digest and semble_plan (2026-06-17)
+
+### semble_digest
+
+**Test input:** 18-line mixed build output (5 compile, 3 errors, 1 warning, 1 linker error chain)
+
+| Dimension | Raw output | semble_digest | Agent manual digest |
+|---|---|---|---|
+| Noise filtered | — | ✅ stripped 5 Compiling lines | ✅ |
+| Errors preserved | — | ✅ all 3 errors | ✅ |
+| Vendor categorization | — | ❌ | ✅ ABB/Fanuc/UR |
+| Error counting | — | ❌ | ✅ 3 errors, 1 warning, 1 linker |
+
+**Verdict:** Useful for large build logs (filtering hundreds of noise lines), but for small output the agent re-summarizes anyway. Description updated to tell agent to trust the tool output directly.
+
+### semble_plan
+
+**Ground truth** for "add a new robot vendor bridge" — actual files needed:
+
+| File | Role | sembre_plan hit? |
+|---|---|---|
+| `src/CMakeLists.txt` | `add_subdirectory` registration | ❌ |
+| `src/include/mujinrobotbridge/robotcontrollerbridge.h` | Core interface | Partial (robotbridgecommon.h) |
+| `src/sanyo/sanyoethercatbridge.cpp` | Simple template bridge | ✅ (#8) |
+| `src/robotbridgeserver/robotbridgemain.cpp` | Entry point | ✅ (#7) |
+| `src/robotbridgeserver/robotbridgedatabase.cpp` | Bridge factory/registry | ❌ |
+
+**Top 8 recommendations accuracy:** 4/8 relevant (50%).
+- Top hit (score 0.0353): Python migration file — completely wrong context
+- False positives: jog executor, Python migration
+- Missed: CMakeLists.txt, bridge database/factory
+
+**Verdict:** Has signal but high noise. Semantic similarity captures "bridge" keyword but confuses Python/C++ contexts. Description updated to warn about false positives.
