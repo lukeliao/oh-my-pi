@@ -1,0 +1,40 @@
+Metadata-Version: 2.4
+Name: liaogong-symphony
+Version: 0.1.0
+Summary: OMP-based unattended conductor for deterministic multi-host work execution
+Author: liaogong-symphony
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.112
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: pydantic>=2.6
+Requires-Dist: pydantic-settings>=2.2
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: click>=8.1
+Requires-Dist: omp-rpc>=0.1.0
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: httpx>=0.27; extra == "dev"
+Requires-Dist: ruff>=0.13; extra == "dev"
+
+# liaogong-symphony
+
+`liaogong-symphony` is an OMP-based unattended conductor that adds Symphony-style scheduling, deterministic workspaces, retry/reconciliation, observability, and pull-based multi-host execution around `omp --mode rpc`.
+
+## Current v1 scope
+
+- manual queue intake only
+- deterministic workspace/session allocation per work item
+- durable SQLite-backed work items, attempts, leases, workers, and events
+- local embedded worker or remote pull workers
+- repo-owned `WORKFLOW.md` overlay for queue/workspace/OMP/worker policy
+- FastAPI operator surface and simple dashboard
+
+## Run locally
+
+```bash
+pip install -e 'python/liaogong_symphony[dev]'
+python3 -m liaogong_symphony serve --with-local-worker
+```
