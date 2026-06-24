@@ -1,0 +1,2 @@
+[console_scripts]
+liaogong-symphony = liaogong_symphony.cli:main
