@@ -763,7 +763,7 @@ const factory: CustomToolFactory = (pi) => {
 			name: "semble_tree",
 			label: "semble tree",
 			description:
-				"Show the directory tree of a codebase (respects .gitignore, compact). Use instead of `find` when you need to see project structure without token explosion from recursive file listings.",
+				"Show the directory tree of a codebase (respects .gitignore, compact). Use instead of `glob` when you need to see project structure without token explosion from recursive file listings.",
 			strict: true,
 			approval: "read" as const,
 			parameters: pi.zod
