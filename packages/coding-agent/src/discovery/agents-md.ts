@@ -105,6 +105,10 @@ function pickContextFrontmatter(frontmatter: ParsedFrontmatter | null): ContextF
 		resource: typeof frontmatter.resource === "string" ? frontmatter.resource : undefined,
 		tags: Array.isArray(frontmatter.tags) ? frontmatter.tags.map(String) : undefined,
 		timestamp: typeof frontmatter.timestamp === "string" ? frontmatter.timestamp : undefined,
+		status: typeof frontmatter.status === "string" ? frontmatter.status : undefined,
+		milestone: typeof frontmatter.milestone === "string" ? frontmatter.milestone : undefined,
+		validation: typeof frontmatter.validation === "string" ? frontmatter.validation : undefined,
+		decision_level: typeof frontmatter.decision_level === "string" ? frontmatter.decision_level : undefined,
 	};
 }
 
