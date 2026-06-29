@@ -271,7 +271,7 @@ describe("SYSTEM.md prompt assembly", () => {
 		fs.mkdirSync(projectDir, { recursive: true });
 		fs.writeFileSync(
 			path.join(projectDir, "AGENTS.md"),
-			"---\ntype: ModuleOverview\ntags: [workspace, routing]\n---\n# Project Instructions\n",
+			"---\ntype: ModuleOverview\ntags: [workspace, routing]\nstatus: active\nmilestone: investor-demo\nvalidation: not-applicable\ndecision_level: autonomous\n---\n# Project Instructions\n",
 		);
 
 		const contextFiles = await loadProjectContextFiles({ cwd: projectDir });
@@ -291,7 +291,7 @@ describe("SYSTEM.md prompt assembly", () => {
 		const promptText = systemPrompt.join("\n\n");
 
 		expect(promptText).toContain(
-			`<file path="${path.join(projectDir, "AGENTS.md")}" type="ModuleOverview" tags="workspace,routing">`,
+			`<file path="${path.join(projectDir, "AGENTS.md")}" type="ModuleOverview" tags="workspace,routing" status="active" milestone="investor-demo" validation="not-applicable" decision_level="autonomous">`,
 		);
 		expect(promptText).toContain("# Project Instructions");
 		expect(promptText).not.toContain("type: ModuleOverview");
@@ -327,13 +327,68 @@ describe("SYSTEM.md prompt assembly", () => {
 		expect(promptText).not.toContain("Product concept");
 	});
 
-	it("does not render invalid frontmatter metadata attributes", async () => {
+	it("discovers OKF gateway indexes without loading sibling concept bodies", async () => {
+		const projectDir = path.join(tempDir, "project");
+		const pd = path.join(projectDir, "product_doc");
+		const alg = path.join(pd, "algorithms");
+		fs.mkdirSync(alg, { recursive: true });
+
+		fs.writeFileSync(
+			path.join(projectDir, "AGENTS.md"),
+			"---\ntype: ModuleOverview\ntags: [workspace, routing]\n---\n# Root Rules\n",
+		);
+		fs.writeFileSync(
+			path.join(pd, "index.md"),
+			"---\ntype: ModuleOverview\ntags: [docs, product]\n---\n# Product Index\n",
+		);
+		fs.writeFileSync(
+			path.join(pd, "AGENTS.md"),
+			"---\ntype: ModuleOverview\ntags: [docs, product]\n---\n# Product Rules\n",
+		);
+		fs.writeFileSync(
+			path.join(pd, "concept.md"),
+			"---\ntype: SystemDesign\ntags: [architecture, product]\n---\n# Product Concept\nSHOULD_NOT_LOAD_CONCEPT_BODY\n",
+		);
+		fs.writeFileSync(
+			path.join(alg, "index.md"),
+			"---\ntype: ModuleOverview\ntags: [algorithms, index]\n---\n# Algorithm Index\n",
+		);
+		fs.writeFileSync(
+			path.join(alg, "detail.md"),
+			"---\ntype: Reference\ntags: [algorithms, benchmark]\n---\n# Algorithm Detail\nSHOULD_NOT_LOAD_DETAIL_BODY\n",
+		);
+
+		const algorithmsDir = path.join(projectDir, "product_doc", "algorithms");
+		const contextFiles = await loadProjectContextFiles({ cwd: algorithmsDir });
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: algorithmsDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+
+		expect(promptText).toContain("# Root Rules");
+		expect(promptText).toContain("# Product Index");
+		expect(promptText).toContain("# Algorithm Index");
+		expect(promptText).not.toContain("SHOULD_NOT_LOAD_CONCEPT_BODY");
+		expect(promptText).not.toContain("SHOULD_NOT_LOAD_DETAIL_BODY");
+	});
+
+	it("does not render invalid OKF status validation or decision metadata", async () => {
 		const contextFiles = [
 			{
 				path: path.join(tempDir, "AGENTS.md"),
 				content: "Project rules",
 				depth: 0,
-				frontmatter: { type: 'Bad"Type', tags: ["safe", "bad<tag"] },
+				frontmatter: {
+					type: "ModuleOverview",
+					status: "bogus",
+					validation: "hardware<bad",
+					decision_level: "needs-root",
+					tags: ["docs", "okf"],
+				},
 			},
 		];
 
@@ -346,8 +401,63 @@ describe("SYSTEM.md prompt assembly", () => {
 		});
 		const promptText = systemPrompt.join("\n\n");
 
-		expect(promptText).toContain(`<file path="${path.join(tempDir, "AGENTS.md")}">`);
-		expect(promptText).not.toContain('Bad"Type');
-		expect(promptText).not.toContain("bad<tag");
+		expect(promptText).not.toContain("bogus");
+		expect(promptText).not.toContain("hardware<bad");
+		expect(promptText).not.toContain("needs-root");
+	});
+
+	it("renders OKF navigation protocol only when OKF metadata exists", async () => {
+		const contextFiles = [
+			{
+				path: path.join(tempDir, "product_doc", "index.md"),
+				content: "Product index",
+				depth: 0,
+				frontmatter: { type: "ModuleOverview", tags: ["docs", "okf"] },
+			},
+		];
+
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: tempDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+
+		expect(promptText).toContain("<okf-wiki-protocol>");
+		expect(promptText).toContain("OKF context is an indexable knowledge wiki");
+		expect(promptText).toContain("open-question");
+		expect(promptText).toContain("semble_search");
+		expect(promptText).toContain("cite the concept file path");
+		// Second fixture: no valid OKF type → no protocol
+		const noOkfFiles = [
+			{
+				path: path.join(tempDir, "AGENTS.md"),
+				content: "No OKF here",
+				depth: 0,
+			},
+		];
+		const { systemPrompt: noPrompt } = await buildSystemPrompt({
+			cwd: tempDir,
+			contextFiles: noOkfFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		expect(noPrompt.join("\n\n")).not.toContain("<okf-wiki-protocol>");
+
+		// Custom prompt mode: protocol appears exactly once
+		const { systemPrompt: customPrompt } = await buildSystemPrompt({
+			cwd: tempDir,
+			customPrompt: "Base prompt",
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const customText = customPrompt.join("\n\n");
+		const matches = customText.match(/<okf-wiki-protocol>/g) ?? [];
+		expect(matches).toHaveLength(1);
 	});
 });
