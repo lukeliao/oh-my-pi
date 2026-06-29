@@ -16,6 +16,10 @@ export interface ContextFileFrontmatter {
 	resource?: string;
 	tags?: string[];
 	timestamp?: string;
+	status?: string;
+	milestone?: string;
+	validation?: string;
+	decision_level?: string;
 }
 
 /**
