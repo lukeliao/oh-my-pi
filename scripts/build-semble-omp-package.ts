@@ -215,7 +215,7 @@ while [ -L "$SELF" ]; do
 done
 ROOT="\$(CDPATH= cd -- "\$(dirname -- "$SELF")/.." && pwd)"
 export OMP_SEMBLE_HOME="\${OMP_SEMBLE_HOME:-$ROOT}"
-export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-\$HOME/.omp/agent-semble}"
+export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-\$HOME/.omp/agent}"
 export SEMBLE_RS_BIN="\${SEMBLE_RS_BIN:-$ROOT/lib/semble_rs}"
 export SEMBLE_MODEL_PATH="\${SEMBLE_MODEL_PATH:-$ROOT/models/potion-code-16M}"
 exec "$ROOT/lib/omp" "$@"
