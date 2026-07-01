@@ -119,7 +119,7 @@ async function build() {
 
 	// 2. Generate tool-views.generated.js
 	console.log("[2/4] Generating tool-views.generated.js...");
-	await spawn(["bun", "--cwd=packages/collab-web", "run", "build:tool-views"], repoRoot);
+	await spawn(["bun", "--cwd=packages/collab-web", "run", "gen:tool-views"], repoRoot);
 
 	// 3. Build natives
 	console.log("[3/4] Building native addons...");
@@ -163,8 +163,14 @@ async function spawn(
 }
 
 async function packageBundle() {
-	// Copy lib/omp (already built at libDir/omp)
-	console.log("Copying lib/omp...");
+	// Copy omp binary from dist (OMP_BUILD_OUTFILE env var no longer supported upstream)
+	const ompSrc = path.join(repoRoot, "packages", "coding-agent", "dist", "omp");
+	if (!fs.existsSync(ompSrc)) {
+		console.error(`omp binary not found: ${ompSrc}`);
+		process.exit(1);
+	}
+	fs.copyFileSync(ompSrc, path.join(libDir, "omp"));
+	console.log(`  → ${ompSrc} -> lib/omp`);
 
 	// Copy semble_rs binary
 	const exeSuffix = process.platform === "win32" ? ".exe" : "";
@@ -209,6 +215,7 @@ while [ -L "$SELF" ]; do
 done
 ROOT="\$(CDPATH= cd -- "\$(dirname -- "$SELF")/.." && pwd)"
 export OMP_SEMBLE_HOME="\${OMP_SEMBLE_HOME:-$ROOT}"
+export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-\$HOME/.omp/agent-semble}"
 export SEMBLE_RS_BIN="\${SEMBLE_RS_BIN:-$ROOT/lib/semble_rs}"
 export SEMBLE_MODEL_PATH="\${SEMBLE_MODEL_PATH:-$ROOT/models/potion-code-16M}"
 exec "$ROOT/lib/omp" "$@"
