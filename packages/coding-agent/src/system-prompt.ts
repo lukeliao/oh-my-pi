@@ -1,3 +1,4 @@
+import * as path from "node:path";
 /**
  * System prompt construction and project context loading
  */
@@ -318,7 +319,6 @@ export interface LoadContextFilesOptions {
 	cwd?: string;
 }
 
-
 export interface ProjectContextFile {
 	path: string;
 	content: string;
@@ -354,9 +354,14 @@ function normalizeContextFrontmatter(frontmatter: ContextFile["frontmatter"]): C
 	if (!frontmatter || !isOkfContextType(frontmatter.type)) return undefined;
 	const tags = frontmatter.tags?.filter(tag => CONTEXT_TAG_RE.test(tag));
 	const status = frontmatter.status && OKF_STATUS_VALUES.has(frontmatter.status) ? frontmatter.status : undefined;
-	const milestone = frontmatter.milestone && OKF_MILESTONE_VALUES.has(frontmatter.milestone) ? frontmatter.milestone : undefined;
-	const validation = frontmatter.validation && OKF_VALIDATION_VALUES.has(frontmatter.validation) ? frontmatter.validation : undefined;
-	const decision_level = frontmatter.decision_level && OKF_DECISION_LEVEL_VALUES.has(frontmatter.decision_level) ? frontmatter.decision_level : undefined;
+	const milestone =
+		frontmatter.milestone && OKF_MILESTONE_VALUES.has(frontmatter.milestone) ? frontmatter.milestone : undefined;
+	const validation =
+		frontmatter.validation && OKF_VALIDATION_VALUES.has(frontmatter.validation) ? frontmatter.validation : undefined;
+	const decision_level =
+		frontmatter.decision_level && OKF_DECISION_LEVEL_VALUES.has(frontmatter.decision_level)
+			? frontmatter.decision_level
+			: undefined;
 	return { ...frontmatter, tags: tags?.length ? tags : undefined, status, milestone, validation, decision_level };
 }
 
@@ -366,6 +371,37 @@ function normalizeContextFilesForPrompt(contextFiles: ProjectContextFile[]): Pro
 
 function hasOkfContextFile(contextFiles: ProjectContextFile[]): boolean {
 	return contextFiles.some(file => isOkfContextType(file.frontmatter?.type));
+}
+
+const MARKDOWN_LINK_RE = /\[[^\]]+\]\(([^)]+)\)/g;
+
+/**
+ * Build a reverse-link index from OKF concept cross-links in the loaded set.
+ * Returns a map of target concept title → sorted list of citing concept titles.
+ * Links to external URLs, mailto, pure fragments, and unresolved targets are skipped.
+ */
+function buildBacklinks(files: ProjectContextFile[]): Record<string, string[]> {
+	const titleByPath = new Map<string, string>();
+	for (const f of files) {
+		titleByPath.set(path.resolve(f.path), f.frontmatter?.title ?? path.basename(f.path, ".md"));
+	}
+	const backlinks: Record<string, string[]> = {};
+	for (const f of files) {
+		const srcTitle = f.frontmatter?.title ?? path.basename(f.path, ".md");
+		for (const m of f.content.matchAll(MARKDOWN_LINK_RE)) {
+			let target = m[1].trim();
+			if (target.startsWith("http") || target.startsWith("#") || target.startsWith("mailto:")) continue;
+			if (target.includes("#")) target = target.split("#", 1)[0];
+			if (!target) continue;
+			const resolved = path.resolve(path.dirname(f.path), target);
+			const tgtTitle = titleByPath.get(resolved);
+			if (!tgtTitle || tgtTitle === srcTitle) continue;
+			if (!backlinks[tgtTitle]) backlinks[tgtTitle] = [];
+			backlinks[tgtTitle].push(srcTitle);
+		}
+	}
+	for (const k of Object.keys(backlinks)) backlinks[k] = [...new Set(backlinks[k])].sort();
+	return backlinks;
 }
 function dedupeExactContextFiles(
 	contextFiles: Array<{ path: string; content: string; depth?: number }>,
@@ -377,6 +413,52 @@ function dedupeExactContextFiles(
 	}
 
 	return contextFiles.filter((file, index) => lastIndexByContent.get(file.content) === index);
+}
+
+const INSTRUCTION_FILENAMES = new Set(["agents.md", "claude.md", "gemini.md", "cursorrules", "index.md", "readme.md"]);
+
+/**
+ * Progressive-disclosure gate: when a directory has an `index.md` gateway,
+ * sibling OKF concept bodies are pruned from the auto-injected context set.
+ * Instruction files (AGENTS.md, CLAUDE.md, …) and the `index.md` itself are
+ * always kept. A file without OKF frontmatter is never pruned.
+ */
+function pruneIndexedContextFiles(files: ProjectContextFile[]): ProjectContextFile[] {
+	const dirs = new Map<string, boolean>();
+	for (const f of files) {
+		if (path.basename(f.path).toLowerCase() === "index.md") {
+			dirs.set(path.dirname(f.path), true);
+		}
+	}
+	return files.filter(f => {
+		const hasIndex = dirs.get(path.dirname(f.path));
+		if (!hasIndex) return true;
+		const lowerName = path.basename(f.path).toLowerCase();
+		if (INSTRUCTION_FILENAMES.has(lowerName)) return true;
+		return !f.frontmatter?.type;
+	});
+}
+
+const STATUS_DROP_PRIORITY: Record<string, number> = {
+	deprecated: 0,
+	"open-question": 1,
+	active: 2,
+	"frozen-v1": 3,
+};
+const DEFAULT_STATUS_PRIORITY = 2;
+
+/**
+ * Stable-order context files so that if downstream truncation sheds entries,
+ * it drops `deprecated` first, then `open-question`, then `active`, keeping
+ * `frozen-v1` decisions to the end. Within a status bucket the discovery
+ * order is preserved.
+ */
+function sortByStatusPriority(files: ProjectContextFile[]): ProjectContextFile[] {
+	return [...files].sort(
+		(a, b) =>
+			(STATUS_DROP_PRIORITY[a.frontmatter?.status ?? ""] ?? DEFAULT_STATUS_PRIORITY) -
+			(STATUS_DROP_PRIORITY[b.frontmatter?.status ?? ""] ?? DEFAULT_STATUS_PRIORITY),
+	);
 }
 
 /**
@@ -697,8 +779,8 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 			prepDefaults.resolvedAppendPrompt,
 		),
 		withDeadline("loadSystemPromptFiles", systemPromptCustomizationPromise, prepDefaults.systemPromptCustomization),
-		withDeadline("loadProjectContextFiles", contextFilesPromise, prepDefaults.contextFiles).then(
-			dedupeExactContextFiles,
+		withDeadline("loadProjectContextFiles", contextFilesPromise, prepDefaults.contextFiles).then(files =>
+			sortByStatusPriority(pruneIndexedContextFiles(dedupeExactContextFiles(files))),
 		),
 		withDeadline("loadSkills", skillsPromise, prepDefaults.skills),
 		withDeadline("buildWorkspaceTree", workspaceTreePromise, prepDefaults.workspaceTree),
@@ -797,6 +879,13 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		environment,
 		contextFiles: normalizeContextFilesForPrompt(contextFiles),
 		hasOkfContext: hasOkfContextFile(contextFiles),
+		okfBacklinksText: (() => {
+			if (!hasOkfContextFile(contextFiles)) return "";
+			const bl = buildBacklinks(contextFiles);
+			return Object.entries(bl)
+				.map(([k, v]) => `${k} ← ${v.join(", ")}`)
+				.join("; ");
+		})(),
 		agentsMdSearch: { files: agentsMdFiles },
 		workspaceTree,
 		skills: filteredSkills,

@@ -297,6 +297,28 @@ describe("SYSTEM.md prompt assembly", () => {
 		expect(promptText).not.toContain("type: ModuleOverview");
 	});
 
+	it("renders resource attribute when frontmatter.resource is set", async () => {
+		const projectDir = path.join(tempDir, "res-proj");
+		fs.mkdirSync(projectDir, { recursive: true });
+		const contextFiles = [
+			{
+				path: path.join(projectDir, "AGENTS.md"),
+				content: "# Rules",
+				depth: 0,
+				frontmatter: { type: "ModuleOverview", resource: "file://robot_runtime/" },
+			},
+		];
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: projectDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+		expect(promptText).toContain('resource="file://robot_runtime/"');
+	});
+
 	it("keeps directory index and prunes only sibling OKF concept files", async () => {
 		const contextFiles = [
 			{ path: path.join(tempDir, "product_doc", "index.md"), content: "Product index", depth: 0 },
@@ -324,7 +346,7 @@ describe("SYSTEM.md prompt assembly", () => {
 		expect(promptText).toContain("Product rules");
 		expect(promptText).toContain("Claude rules");
 		expect(promptText).toContain("Root rules");
-		expect(promptText).toContain("Product concept");
+		expect(promptText).not.toContain("Product concept");
 	});
 
 	it("discovers OKF gateway indexes without loading sibling concept bodies", async () => {
@@ -459,5 +481,82 @@ describe("SYSTEM.md prompt assembly", () => {
 		const customText = customPrompt.join("\n\n");
 		const matches = customText.match(/<okf-wiki-protocol>/g) ?? [];
 		expect(matches).toHaveLength(1);
+	});
+
+	it("orders context files so frozen-v1 concepts survive truncation over deprecated ones", async () => {
+		const projectDir = path.join(tempDir, "order-proj");
+		fs.mkdirSync(projectDir, { recursive: true });
+		const contextFiles = [
+			{
+				path: path.join(projectDir, "dep.md"),
+				content: "DEP_BODY",
+				depth: 0,
+				frontmatter: { type: "Reference", status: "deprecated" },
+			},
+			{
+				path: path.join(projectDir, "frz.md"),
+				content: "FRZ_BODY",
+				depth: 0,
+				frontmatter: { type: "FreezeDecision", status: "frozen-v1" },
+			},
+			{
+				path: path.join(projectDir, "act.md"),
+				content: "ACT_BODY",
+				depth: 0,
+				frontmatter: { type: "SystemDesign", status: "active" },
+			},
+			{
+				path: path.join(projectDir, "opn.md"),
+				content: "OPN_BODY",
+				depth: 0,
+				frontmatter: { type: "ArchitectureConcept", status: "open-question" },
+			},
+		];
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: projectDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+		const depIdx = promptText.indexOf("DEP_BODY");
+		const opnIdx = promptText.indexOf("OPN_BODY");
+		const actIdx = promptText.indexOf("ACT_BODY");
+		const frzIdx = promptText.indexOf("FRZ_BODY");
+		expect(depIdx).toBeLessThan(opnIdx);
+		expect(opnIdx).toBeLessThan(actIdx);
+		expect(actIdx).toBeLessThan(frzIdx);
+	});
+
+	it("injects backlinks into the OKF protocol block when loaded concepts cross-link", async () => {
+		const projectDir = path.join(tempDir, "bl-proj");
+		fs.mkdirSync(projectDir, { recursive: true });
+		const aPath = path.join(projectDir, "a.md");
+		const bPath = path.join(projectDir, "b.md");
+		const contextFiles = [
+			{
+				path: aPath,
+				content: "See [b](./b.md) for details.\n# A",
+				depth: 0,
+				frontmatter: { type: "SystemDesign", title: "A Concept", tags: ["x", "y"], status: "active" },
+			},
+			{
+				path: bPath,
+				content: "# B",
+				depth: 0,
+				frontmatter: { type: "Reference", title: "B Concept", tags: ["x", "z"], status: "active" },
+			},
+		];
+		const { systemPrompt } = await buildSystemPrompt({
+			cwd: projectDir,
+			contextFiles,
+			skills: [],
+			rules: [],
+			toolNames: [],
+		});
+		const promptText = systemPrompt.join("\n\n");
+		expect(promptText).toContain("Cited by");
+		expect(promptText).toContain("A Concept");
 	});
 });
