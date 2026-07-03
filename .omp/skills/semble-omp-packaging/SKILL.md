@@ -23,8 +23,8 @@ Build a host-native omp-semble bundle that ships all 9 `semble_*` custom tools, 
 1. Extract/copy the bundle directory to any location.
 2. Install:
    ```bash
-   ./install.sh --prefix ~/.local/bin --agent-dir ~/.omp/agent-semble --force
-   # Or defaults: prefix=~/.local/bin, agent-dir=~/.omp/agent-semble
+   ./install.sh --prefix ~/.local/bin --agent-dir ~/.omp/agent --force
+   # Or defaults: prefix=~/.local/bin, agent-dir=~/.omp/agent
    ```
 3. Verify:
    ```bash
