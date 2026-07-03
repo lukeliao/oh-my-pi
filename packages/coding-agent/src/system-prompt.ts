@@ -318,6 +318,55 @@ export interface LoadContextFilesOptions {
 	cwd?: string;
 }
 
+
+export interface ProjectContextFile {
+	path: string;
+	content: string;
+	depth?: number;
+	frontmatter?: ContextFile["frontmatter"];
+}
+
+const OKF_CONTEXT_TYPES = new Set([
+	"ModuleOverview",
+	"FreezeDecision",
+	"SystemDesign",
+	"ArchitectureConcept",
+	"SafetyConcept",
+	"CodegenContract",
+	"RuntimeConstraint",
+	"HardwareBinding",
+	"Playbook",
+	"Reference",
+]);
+
+const OKF_STATUS_VALUES = new Set(["frozen-v1", "active", "open-question", "deprecated"]);
+const OKF_MILESTONE_VALUES = new Set(["investor-demo", "sample-v1", "v2-planning"]);
+const OKF_VALIDATION_VALUES = new Set(["x64-only", "simulator-validated", "hardware-validated", "not-applicable"]);
+const OKF_DECISION_LEVEL_VALUES = new Set(["autonomous", "needs-liaogong", "needs-team", "needs-mou"]);
+
+const CONTEXT_TAG_RE = /^[a-z0-9][a-z0-9+_-]*$/;
+
+function isOkfContextType(type: string | undefined): boolean {
+	return type !== undefined && OKF_CONTEXT_TYPES.has(type);
+}
+
+function normalizeContextFrontmatter(frontmatter: ContextFile["frontmatter"]): ContextFile["frontmatter"] | undefined {
+	if (!frontmatter || !isOkfContextType(frontmatter.type)) return undefined;
+	const tags = frontmatter.tags?.filter(tag => CONTEXT_TAG_RE.test(tag));
+	const status = frontmatter.status && OKF_STATUS_VALUES.has(frontmatter.status) ? frontmatter.status : undefined;
+	const milestone = frontmatter.milestone && OKF_MILESTONE_VALUES.has(frontmatter.milestone) ? frontmatter.milestone : undefined;
+	const validation = frontmatter.validation && OKF_VALIDATION_VALUES.has(frontmatter.validation) ? frontmatter.validation : undefined;
+	const decision_level = frontmatter.decision_level && OKF_DECISION_LEVEL_VALUES.has(frontmatter.decision_level) ? frontmatter.decision_level : undefined;
+	return { ...frontmatter, tags: tags?.length ? tags : undefined, status, milestone, validation, decision_level };
+}
+
+function normalizeContextFilesForPrompt(contextFiles: ProjectContextFile[]): ProjectContextFile[] {
+	return contextFiles.map(file => ({ ...file, frontmatter: normalizeContextFrontmatter(file.frontmatter) }));
+}
+
+function hasOkfContextFile(contextFiles: ProjectContextFile[]): boolean {
+	return contextFiles.some(file => isOkfContextType(file.frontmatter?.type));
+}
 function dedupeExactContextFiles(
 	contextFiles: Array<{ path: string; content: string; depth?: number }>,
 ): Array<{ path: string; content: string; depth?: number }> {
@@ -337,7 +386,7 @@ function dedupeExactContextFiles(
  */
 export async function loadProjectContextFiles(
 	options: LoadContextFilesOptions = {},
-): Promise<Array<{ path: string; content: string; depth?: number }>> {
+): Promise<Array<{ path: string; content: string; depth?: number; frontmatter?: ContextFile["frontmatter"] }>> {
 	const resolvedCwd = options.cwd ?? getProjectDir();
 
 	const result = await loadCapability(contextFileCapability.id, { cwd: resolvedCwd });
@@ -349,10 +398,12 @@ export async function loadProjectContextFiles(
 	const files = await Promise.all(
 		result.items.map(async item => {
 			const contextFile = item as ContextFile;
+			const frontmatter = contextFile.frontmatter;
 			return {
 				path: contextFile.path,
 				content: await expandAtImports(contextFile.content, contextFile.path),
 				depth: contextFile.depth,
+				frontmatter,
 			};
 		}),
 	);
@@ -744,7 +795,8 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		toolListMode,
 		toolRefs,
 		environment,
-		contextFiles,
+		contextFiles: normalizeContextFilesForPrompt(contextFiles),
+		hasOkfContext: hasOkfContextFile(contextFiles),
 		agentsMdSearch: { files: agentsMdFiles },
 		workspaceTree,
 		skills: filteredSkills,

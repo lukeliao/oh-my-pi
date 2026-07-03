@@ -324,7 +324,7 @@ describe("SYSTEM.md prompt assembly", () => {
 		expect(promptText).toContain("Product rules");
 		expect(promptText).toContain("Claude rules");
 		expect(promptText).toContain("Root rules");
-		expect(promptText).not.toContain("Product concept");
+		expect(promptText).toContain("Product concept");
 	});
 
 	it("discovers OKF gateway indexes without loading sibling concept bodies", async () => {
