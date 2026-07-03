@@ -248,14 +248,11 @@ mkdir -p "\$PREFIX" "\$AGENT_DIR/tools/semble-rs" "\$AGENT_DIR/skills/semble-omp
 cp "\$ROOT/tools/semble-rs/index.ts" "\$AGENT_DIR/tools/semble-rs/index.ts"
 cp "\$ROOT/skills/semble-omp-packaging/SKILL.md" "\$AGENT_DIR/skills/semble-omp-packaging/SKILL.md"
 
-if [ ! -f "\$AGENT_DIR/config.yml" ]; then
-	cat > "\$AGENT_DIR/config.yml" << 'EOF'
-tools:
-  discoveryMode: off
-EOF
-	echo "Created \$AGENT_DIR/config.yml"
+if [ ! -f "$AGENT_DIR/config.yml" ]; then
+	touch "$AGENT_DIR/config.yml"
+	echo "Created empty $AGENT_DIR/config.yml"
 else
-	echo "Existing config.yml kept: \$AGENT_DIR/config.yml"
+	echo "Existing config.yml kept: $AGENT_DIR/config.yml"
 fi
 
 OFFICIAL_AGENT="\${HOME}/.omp/agent"
