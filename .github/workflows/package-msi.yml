@@ -1,0 +1,85 @@
+name: Package Windows MSI
+
+# Standalone workflow: downloads upstream omp-windows-x64.exe from GitHub
+# Releases and wraps it into a per-user MSI installer via msitools/wixl.
+# Does NOT require omp-kata runner — runs entirely on ubuntu-22.04.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream-version:
+        description: "Upstream oh-my-pi version (e.g. 16.3.10)"
+        type: string
+        required: true
+        default: "16.3.10"
+      upstream-repo:
+        description: "Upstream repo (owner/repo)"
+        type: string
+        required: false
+        default: "can1357/oh-my-pi"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  package-msi:
+    name: Build MSI from upstream binary
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Download upstream Windows binary
+        run: |
+          VERSION="${{ inputs.upstream-version }}"
+          REPO="${{ inputs.upstream-repo }}"
+          URL="https://github.com/${REPO}/releases/download/v${VERSION}/omp-windows-x64.exe"
+          echo "Downloading $URL ..."
+          curl -fsSL --retry 3 --retry-delay 10 --connect-timeout 30 \
+            -o packages/coding-agent/binaries/omp-windows-x64.exe \
+            "$URL"
+          ls -lh packages/coding-agent/binaries/omp-windows-x64.exe
+          file packages/coding-agent/binaries/omp-windows-x64.exe || true
+
+      - name: Install msitools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq msitools
+
+      - name: Build MSI
+        run: |
+          VERSION="${{ inputs.upstream-version }}"
+          bash scripts/ci-build-msi.sh "$VERSION" \
+            packages/coding-agent/binaries/omp-windows-x64.exe \
+            packages/coding-agent/binaries/omp-windows-x64.msi
+
+      - name: Upload MSI artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: omp-windows-x64-msi-v${{ inputs.upstream-version }}
+          path: packages/coding-agent/binaries/omp-windows-x64.msi
+          retention-days: 90
+
+      - name: Create GitHub Release with MSI
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: v${{ inputs.upstream-version }}-msi
+          name: "OMP v${{ inputs.upstream-version }} — Windows MSI Installer"
+          body: |
+            ## OMP Coding Agent v${{ inputs.upstream-version }} — Windows MSI
+
+            Per-user Windows installer for the OMP Coding Agent, built from [upstream release v${{ inputs.upstream-version }}](https://github.com/${{ inputs.upstream-repo }}/releases/tag/v${{ inputs.upstream-version }}).
+
+            ### Install
+
+            Download `omp-windows-x64.msi` and double-click to install.
+
+            Installs to `%LOCALAPPDATA%\omp\` (no admin required).
+
+            ### Source
+
+            Binary: upstream [oh-my-pi](https://github.com/${{ inputs.upstream-repo }}) release.
+            MSI packaging: [ci-build-msi.sh](https://github.com/${{ github.repository }}/blob/main/scripts/ci-build-msi.sh) via msitools/wixl.
+          files: |
+            packages/coding-agent/binaries/omp-windows-x64.msi
+          generate_release_notes: false
