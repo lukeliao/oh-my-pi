@@ -707,6 +707,15 @@ jobs:
               pattern: omp-binary-*
               path: packages/coding-agent/binaries
               merge-multiple: true
+         - name: Build Windows MSI installer
+           run: |
+              sudo apt-get update -qq && sudo apt-get install -y -qq msitools
+              VERSION="${TAG#v}"
+              bash scripts/ci-build-msi.sh "$VERSION" \
+                packages/coding-agent/binaries/omp-windows-x64.exe \
+                packages/coding-agent/binaries/omp-windows-x64.msi
+           env:
+              TAG: ${{ needs.release_metadata.outputs.release-tag }}
          - name: Create GitHub Release
            uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
            with:
