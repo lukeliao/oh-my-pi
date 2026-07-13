@@ -108,14 +108,10 @@ const ompBuildOutfile = path.relative(repoRoot, path.join(libDir, "omp"));
 // Build steps
 // ---------------------------------------------------------------------------
 
-
 async function build() {
 	// 1. Build semble_rs binary
 	console.log("[1/4] Building semble_rs...");
-	await spawn(
-		["cargo", "build", "--release", "--manifest-path", "../semble_rs/Cargo.toml"],
-		repoRoot,
-	);
+	await spawn(["cargo", "build", "--release", "--manifest-path", "../semble_rs/Cargo.toml"], repoRoot);
 
 	// 2. Generate tool-views.generated.js
 	console.log("[2/4] Generating tool-views.generated.js...");
@@ -127,27 +123,14 @@ async function build() {
 
 	// 4. Build omp with custom version and output path
 	console.log(`[4/4] Building omp (version=${version}, outfile=${ompBuildOutfile})...`);
-	await spawn(
-		[
-			"bun",
-			"--cwd=packages/coding-agent",
-			"run",
-			"build",
-		],
-		repoRoot,
-		{
-			...Bun.env,
-			OMP_BUILD_VERSION_OVERRIDE: version,
-			OMP_BUILD_OUTFILE: ompBuildOutfile,
-		},
-	);
+	await spawn(["bun", "--cwd=packages/coding-agent", "run", "build"], repoRoot, {
+		...Bun.env,
+		OMP_BUILD_VERSION_OVERRIDE: version,
+		OMP_BUILD_OUTFILE: ompBuildOutfile,
+	});
 }
 
-async function spawn(
-	args: string[],
-	cwd: string,
-	extraEnv?: Record<string, string>,
-): Promise<void> {
+async function spawn(args: string[], cwd: string, extraEnv?: Record<string, string>): Promise<void> {
 	console.log(`  → ${args.join(" ")}`);
 	const proc = Bun.spawn(args, {
 		cwd,
@@ -198,7 +181,7 @@ async function packageBundle() {
 	console.log(`  → model files copied to models/potion-code-16M/`);
 
 	// Write VERSION
-	fs.writeFileSync(path.join(bundleDir, "VERSION"), version + "\n");
+	fs.writeFileSync(path.join(bundleDir, "VERSION"), `${version}\n`);
 
 	// Generate bin/omp-semble wrapper
 	const wrapper = `#!/usr/bin/env sh
@@ -206,16 +189,16 @@ set -eu
 # Resolve symlinks to find the real bundle root
 SELF="$0"
 while [ -L "$SELF" ]; do
-  TARGET="\$(readlink "$SELF")"
-  DIR="\$(dirname -- "$SELF")"
-  case "\$TARGET" in
-    /*) SELF="\$TARGET" ;;
-    *) SELF="\$DIR/\$TARGET" ;;
+  TARGET="$(readlink "$SELF")"
+  DIR="$(dirname -- "$SELF")"
+  case "$TARGET" in
+    /*) SELF="$TARGET" ;;
+    *) SELF="$DIR/$TARGET" ;;
   esac
 done
-ROOT="\$(CDPATH= cd -- "\$(dirname -- "$SELF")/.." && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd)"
 export OMP_SEMBLE_HOME="\${OMP_SEMBLE_HOME:-$ROOT}"
-export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-\$HOME/.omp/agent}"
+export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 export SEMBLE_RS_BIN="\${SEMBLE_RS_BIN:-$ROOT/lib/semble_rs}"
 export SEMBLE_MODEL_PATH="\${SEMBLE_MODEL_PATH:-$ROOT/models/potion-code-16M}"
 exec "$ROOT/lib/omp" "$@"
@@ -232,21 +215,21 @@ PREFIX="\${HOME}/.local/bin"
 AGENT_DIR="\${HOME}/.omp/agent"
 FORCE=false
 
-while [ \$# -gt 0 ]; do
-	case "\$1" in
-		--prefix) PREFIX="\$2"; shift 2 ;;
-		--agent-dir) AGENT_DIR="\$2"; shift 2 ;;
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--prefix) PREFIX="$2"; shift 2 ;;
+		--agent-dir) AGENT_DIR="$2"; shift 2 ;;
 		--force) FORCE=true; shift ;;
-		*) echo "Unknown flag: \$1"; exit 1 ;;
+		*) echo "Unknown flag: $1"; exit 1 ;;
 	esac
 done
 
-ROOT="\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)"
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
-mkdir -p "\$PREFIX" "\$AGENT_DIR/tools/semble-rs" "\$AGENT_DIR/skills/semble-omp-packaging" "\$AGENT_DIR"
+mkdir -p "$PREFIX" "$AGENT_DIR/tools/semble-rs" "$AGENT_DIR/skills/semble-omp-packaging" "$AGENT_DIR"
 
-cp "\$ROOT/tools/semble-rs/index.ts" "\$AGENT_DIR/tools/semble-rs/index.ts"
-cp "\$ROOT/skills/semble-omp-packaging/SKILL.md" "\$AGENT_DIR/skills/semble-omp-packaging/SKILL.md"
+cp "$ROOT/tools/semble-rs/index.ts" "$AGENT_DIR/tools/semble-rs/index.ts"
+cp "$ROOT/skills/semble-omp-packaging/SKILL.md" "$AGENT_DIR/skills/semble-omp-packaging/SKILL.md"
 
 if [ ! -f "$AGENT_DIR/config.yml" ]; then
 	touch "$AGENT_DIR/config.yml"
@@ -257,24 +240,24 @@ fi
 
 OFFICIAL_AGENT="\${HOME}/.omp/agent"
 for f in models.yml mcp.json; do
-  if [ ! -f "\$AGENT_DIR/\$f" ] && [ -f "\$OFFICIAL_AGENT/\$f" ]; then
-    cp "\$OFFICIAL_AGENT/\$f" "\$AGENT_DIR/\$f"
-    echo "Copied \$f from official omp config"
+  if [ ! -f "$AGENT_DIR/$f" ] && [ -f "$OFFICIAL_AGENT/$f" ]; then
+    cp "$OFFICIAL_AGENT/$f" "$AGENT_DIR/$f"
+    echo "Copied $f from official omp config"
   fi
 done
 
-OMP_SEMBLE_LINK="\$PREFIX/omp-semble"
-if [ -e "\$OMP_SEMBLE_LINK" ] || [ -L "\$OMP_SEMBLE_LINK" ]; then
-	if [ "\$FORCE" = false ]; then
-		echo "Refusing to overwrite existing omp-semble at \$OMP_SEMBLE_LINK"
+OMP_SEMBLE_LINK="$PREFIX/omp-semble"
+if [ -e "$OMP_SEMBLE_LINK" ] || [ -L "$OMP_SEMBLE_LINK" ]; then
+	if [ "$FORCE" = false ]; then
+		echo "Refusing to overwrite existing omp-semble at $OMP_SEMBLE_LINK"
 		exit 1
 	fi
-	rm -f "\$OMP_SEMBLE_LINK"
+	rm -f "$OMP_SEMBLE_LINK"
 fi
-ln -s "\$ROOT/bin/omp-semble" "\$OMP_SEMBLE_LINK"
+ln -s "$ROOT/bin/omp-semble" "$OMP_SEMBLE_LINK"
 
-echo "Installed omp-semble: \$OMP_SEMBLE_LINK"
-echo "Agent dir: \$AGENT_DIR"
+echo "Installed omp-semble: $OMP_SEMBLE_LINK"
+echo "Agent dir: $AGENT_DIR"
 `;
 	const installerPath = path.join(bundleDir, "install.sh");
 	fs.writeFileSync(installerPath, installer);
@@ -335,7 +318,7 @@ These are only defaults; explicitly set env vars take precedence.
 			.join("");
 		sumEntries.push(`${hex}  ${rel}`);
 	}
-	fs.writeFileSync(path.join(bundleDir, "SHA256SUMS"), sumEntries.join("\n") + "\n");
+	fs.writeFileSync(path.join(bundleDir, "SHA256SUMS"), `${sumEntries.join("\n")}\n`);
 
 	console.log(`\nBundle: ${bundleDir}`);
 	console.log(`  omp-semble ${version} (${platformArch})`);
