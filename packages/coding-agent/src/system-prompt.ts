@@ -1,4 +1,3 @@
-import * as path from "node:path";
 /**
  * System prompt construction and project context loading
  */
@@ -36,6 +35,7 @@ import projectPromptTemplate from "./prompts/system/project-prompt.md" with { ty
 import systemPromptTemplate from "./prompts/system/system-prompt.md" with { type: "text" };
 import { normalizeConcurrencyLimit } from "./task/parallel";
 import { usesCodexTaskPrompt } from "./task/prompt-policy";
+
 import { type ActiveRepoContext, resolveActiveRepoContext } from "./utils/active-repo-context";
 import { normalizePromptPath } from "./utils/prompt-path";
 import { AGENTS_MD_LIMIT, buildWorkspaceTree, type WorkspaceTree } from "./workspace-tree";
@@ -340,6 +340,7 @@ async function getCpuModel(): Promise<string | undefined> {
 		return undefined;
 	}
 }
+
 /**
  * Kernel identity for the workstation block. Prefers the uname build string
  * from `os.version()`, but Bun on macOS 15+ (Darwin 24/25) returns the literal
@@ -354,13 +355,10 @@ function getKernelIdentity(): string {
 	return `${os.type()} ${os.release()}`.trim();
 }
 
-function getEnvironmentInfo(gpu: string | undefined): Array<{ label: string; value: string }> {
-	let cpuModel: string | undefined;
-	try {
-		cpuModel = os.cpus()[0]?.model;
-	} catch {
-		cpuModel = undefined;
-	}
+function getEnvironmentInfo(
+	cpuModel: string | undefined,
+	gpu: string | undefined,
+): Array<{ label: string; value: string }> {
 	const entries: Array<{ label: string; value: string | undefined }> = [
 		{ label: "OS", value: `${os.platform()} ${os.release()}` },
 		{ label: "Distro", value: os.type() },
@@ -467,11 +465,6 @@ function hasOkfContextFile(contextFiles: ProjectContextFile[]): boolean {
 
 const MARKDOWN_LINK_RE = /\[[^\]]+\]\(([^)]+)\)/g;
 
-/**
- * Build a reverse-link index from OKF concept cross-links in the loaded set.
- * Returns a map of target concept title → sorted list of citing concept titles.
- * Links to external URLs, mailto, pure fragments, and unresolved targets are skipped.
- */
 function buildBacklinks(files: ProjectContextFile[]): Record<string, string[]> {
 	const titleByPath = new Map<string, string>();
 	for (const f of files) {
@@ -533,12 +526,6 @@ function buildBacklinks(files: ProjectContextFile[]): Record<string, string[]> {
 
 const INSTRUCTION_FILENAMES = new Set(["agents.md", "claude.md", "gemini.md", "cursorrules", "index.md", "readme.md"]);
 
-/**
- * Progressive-disclosure gate: when a directory has an `index.md` gateway,
- * sibling OKF concept bodies are pruned from the auto-injected context set.
- * Instruction files (AGENTS.md, CLAUDE.md, …) and the `index.md` itself are
- * always kept. A file without OKF frontmatter is never pruned.
- */
 function pruneIndexedContextFiles(files: ProjectContextFile[]): ProjectContextFile[] {
 	const dirs = new Map<string, boolean>();
 	for (const f of files) {
@@ -563,12 +550,6 @@ const STATUS_DROP_PRIORITY: Record<string, number> = {
 };
 const DEFAULT_STATUS_PRIORITY = 2;
 
-/**
- * Stable-order context files so that if downstream truncation sheds entries,
- * it drops `deprecated` first, then `open-question`, then `active`, keeping
- * `frozen-v1` decisions to the end. Within a status bucket the discovery
- * order is preserved.
- */
 function sortByStatusPriority(files: ProjectContextFile[]): ProjectContextFile[] {
 	return [...files].sort(
 		(a, b) =>
@@ -577,14 +558,22 @@ function sortByStatusPriority(files: ProjectContextFile[]): ProjectContextFile[]
 	);
 }
 
+function dedupeExactContextFiles(contextFiles: ProjectContextFile[]): ProjectContextFile[] {
+	const lastIndexByContent = new Map<string, number>();
+	for (const [index, file] of contextFiles.entries()) {
+		// Keep the closest matching context entry when content is byte-for-byte identical.
+		lastIndexByContent.set(file.content, index);
+	}
+
+	return contextFiles.filter((file, index) => lastIndexByContent.get(file.content) === index);
+}
+
 /**
  * Load all project context files using the capability API.
  * Returns {path, content, depth} entries for all discovered context files.
  * Files are sorted by depth (descending) so files closer to cwd appear last/more prominent.
  */
-export async function loadProjectContextFiles(
-	options: LoadContextFilesOptions = {},
-): Promise<Array<{ path: string; content: string; depth?: number; frontmatter?: ContextFile["frontmatter"] }>> {
+export async function loadProjectContextFiles(options: LoadContextFilesOptions = {}): Promise<ProjectContextFile[]> {
 	const resolvedCwd = options.cwd ?? getProjectDir();
 
 	const result = await loadCapability(contextFileCapability.id, {
@@ -603,8 +592,8 @@ export async function loadProjectContextFiles(
 			return {
 				path: contextFile.path,
 				content: await expandAtImports(contextFile.content, contextFile.path),
-				depth: contextFile.depth,
 				frontmatter,
+				depth: contextFile.depth,
 			};
 		}),
 	);
@@ -640,7 +629,7 @@ export async function loadSystemPromptFiles(options: LoadContextFilesOptions = {
 	return userLevel?.content ?? null;
 }
 
-export const DEFAULT_SYSTEM_PROMPT_TOOL_NAMES = ["read", "bash", "eval", "edit", "write"] as const;
+export const DEFAULT_SYSTEM_PROMPT_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
 
 export interface SystemPromptToolMetadata {
 	label: string;
@@ -747,8 +736,7 @@ export interface BuildSystemPromptOptions {
 	/** Additional workspace directories beyond cwd (multi-root), absolute. Injected into the project prompt. */
 	additionalWorkspaceRoots?: string[];
 	/** Pre-loaded context files (skips discovery if provided). */
-	contextFiles?: Array<{ path: string; content: string; depth?: number }>;
-	/** Skills provided directly to system prompt construction. */
+	contextFiles?: ProjectContextFile[];
 	skills?: readonly Skill[];
 	/** Pre-loaded rulebook rules (descriptions, excluding TTSR and always-apply). */
 	rules?: Array<{ name: string; description?: string; path: string; globs?: string[] }>;
@@ -758,7 +746,7 @@ export interface BuildSystemPromptOptions {
 	eagerTasks?: boolean;
 	/** When true, the Eager Tasks section uses the hard MUST/ONLY wording (`task.eager: always`) rather than the softer `preferred` nudge. */
 	eagerTasksAlways?: boolean;
-	/** Whether `task.batch` is enabled; gates batch-call guidance in the Eager Tasks section. */
+	/** Whether `task.batch` is enabled; selects the centralized delegation guidance's call shape. */
 	taskBatch?: boolean;
 	/** Effective task concurrency limit displayed in centralized delegation guidance. Zero means unlimited. */
 	taskMaxConcurrency?: number;
@@ -778,6 +766,8 @@ export interface BuildSystemPromptOptions {
 	securityEnabled?: boolean;
 	/** Active model identifier (e.g. "anthropic/claude-opus-4") used by prompt policy and optionally surfaced. */
 	model?: string;
+	/** Whether to surface `model` in the workstation block. Model-specific prompt policy still uses it. Default: true. */
+	includeModelInPrompt?: boolean;
 	/** Personality preset rendered into the default system prompt. "none" omits the block. Default: "default" */
 	personality?: Personality;
 	/** Whether to include the workspace directory tree in the system prompt. Default: false */
@@ -837,12 +827,15 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		eagerTasks = false,
 		eagerTasksAlways = false,
 		taskBatch = true,
+		taskMaxConcurrency = 0,
+		taskIrcEnabled = false,
 		secretsEnabled = false,
 		workspaceTree: providedWorkspaceTree,
 		scoutAvailable = true,
 		memoryRootEnabled = false,
 		securityEnabled = false,
 		model,
+		includeModelInPrompt = true,
 		personality = "default",
 		includeWorkspaceTree = false,
 		renderMermaid = true,
@@ -859,7 +852,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		resolvedCustomPrompt: undefined as string | undefined,
 		resolvedAppendPrompt: undefined as string | undefined,
 		systemPromptCustomization: null as string | null,
-		contextFiles: dedupeContainedContextFiles(providedContextFiles ?? []),
+		contextFiles: sortByStatusPriority(pruneIndexedContextFiles(dedupeContainedContextFiles(providedContextFiles ?? []))),
 		skills: providedSkills ?? ([] as Skill[]),
 		workspaceTree: {
 			rootPath: resolvedCwd,
@@ -869,6 +862,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 			agentsMdFiles: [],
 		} satisfies WorkspaceTree,
 		activeRepoContext: null as ActiveRepoContext | null,
+		cpuModel: undefined as string | undefined,
 		gpu: undefined as string | undefined,
 	};
 
@@ -958,6 +952,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		providedActiveRepoContext !== undefined
 			? Promise.resolve(providedActiveRepoContext)
 			: logger.time("resolveActiveRepoContext", () => resolveActiveRepoContext(resolvedCwd));
+	const cpuModelPromise = logger.time("getCpuModel", getCpuModel);
 	const gpuPromise = logger.time("getCachedGpu", getCachedGpu);
 	// "none" (explicit off — and every subagent) omits the block and skips the file lookup.
 	const bundledPersonality = personality === "none" ? "" : PERSONALITY_SPECS[personality].trim();
@@ -976,6 +971,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		skills,
 		workspaceTree,
 		activeRepoContext,
+		cpuModel,
 		gpu,
 		personalityBlock,
 	] = await Promise.all([
@@ -1000,6 +996,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		withDeadline("loadSkills", skillsPromise, prepDefaults.skills),
 		withDeadline("buildWorkspaceTree", workspaceTreePromise, prepDefaults.workspaceTree),
 		withDeadline("resolveActiveRepoContext", activeRepoContextPromise, prepDefaults.activeRepoContext),
+		withDeadline("getCpuModel", cpuModelPromise, prepDefaults.cpuModel),
 		withDeadline("getCachedGpu", gpuPromise, prepDefaults.gpu),
 		withDeadline("loadPersonalityOverride", personalityPromise, bundledPersonality),
 	]);
@@ -1098,7 +1095,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 	];
 	const injectedAlwaysApplyRules = dedupeAlwaysApplyRules(alwaysApplyRules, promptSources);
 
-	const environment = getEnvironmentInfo(gpu);
+	const environment = getEnvironmentInfo(cpuModel, gpu);
 	const data = {
 		systemPromptCustomization: effectiveSystemPromptCustomization,
 		customPrompt: resolvedCustomPrompt,
