@@ -27,7 +27,7 @@ export const MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"] as const;
 
 /** Version (e.g. "1.0.0") */
 const buildVersionOverride = process.env.PI_COMPILED === "true" ? process.env.OMP_BUILD_VERSION_OVERRIDE : undefined;
-export const VERSION: string = buildVersionOverride && buildVersionOverride.trim() ? buildVersionOverride : version;
+export const VERSION: string = buildVersionOverride?.trim() ? buildVersionOverride : version;
 
 /** Minimum Bun version */
 export const MIN_BUN_VERSION: string = engines.bun.replace(/[^0-9.]/g, "");
