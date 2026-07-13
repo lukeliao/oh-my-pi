@@ -340,7 +340,6 @@ async function getCpuModel(): Promise<string | undefined> {
 		return undefined;
 	}
 }
-
 /**
  * Kernel identity for the workstation block. Prefers the uname build string
  * from `os.version()`, but Bun on macOS 15+ (Darwin 24/25) returns the literal
@@ -355,10 +354,13 @@ function getKernelIdentity(): string {
 	return `${os.type()} ${os.release()}`.trim();
 }
 
-function getEnvironmentInfo(
-	cpuModel: string | undefined,
-	gpu: string | undefined,
-): Array<{ label: string; value: string }> {
+function getEnvironmentInfo(gpu: string | undefined): Array<{ label: string; value: string }> {
+	let cpuModel: string | undefined;
+	try {
+		cpuModel = os.cpus()[0]?.model;
+	} catch {
+		cpuModel = undefined;
+	}
 	const entries: Array<{ label: string; value: string | undefined }> = [
 		{ label: "OS", value: `${os.platform()} ${os.release()}` },
 		{ label: "Distro", value: os.type() },
@@ -638,7 +640,7 @@ export async function loadSystemPromptFiles(options: LoadContextFilesOptions = {
 	return userLevel?.content ?? null;
 }
 
-export const DEFAULT_SYSTEM_PROMPT_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
+export const DEFAULT_SYSTEM_PROMPT_TOOL_NAMES = ["read", "bash", "eval", "edit", "write"] as const;
 
 export interface SystemPromptToolMetadata {
 	label: string;
@@ -756,7 +758,7 @@ export interface BuildSystemPromptOptions {
 	eagerTasks?: boolean;
 	/** When true, the Eager Tasks section uses the hard MUST/ONLY wording (`task.eager: always`) rather than the softer `preferred` nudge. */
 	eagerTasksAlways?: boolean;
-	/** Whether `task.batch` is enabled; selects the centralized delegation guidance's call shape. */
+	/** Whether `task.batch` is enabled; gates batch-call guidance in the Eager Tasks section. */
 	taskBatch?: boolean;
 	/** Effective task concurrency limit displayed in centralized delegation guidance. Zero means unlimited. */
 	taskMaxConcurrency?: number;
@@ -766,7 +768,6 @@ export interface BuildSystemPromptOptions {
 	scoutAvailable?: boolean;
 	/** Active model's delegation appetite (catalog `delegation-bias` axis); selects the Delegation section's wording. Default: `eager`. */
 	delegationBias?: DelegationBias;
-
 	/** Rules with alwaysApply=true — their full content is injected into the prompt. */
 	alwaysApplyRules?: AlwaysApplyRule[];
 	/** Whether secret obfuscation is active. When true, explains the redaction format in the prompt. */
@@ -846,8 +847,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		eagerTasks = false,
 		eagerTasksAlways = false,
 		taskBatch = true,
-		taskMaxConcurrency = 0,
-		taskIrcEnabled = false,
 		secretsEnabled = false,
 		workspaceTree: providedWorkspaceTree,
 		scoutAvailable = true,
@@ -857,7 +856,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		browserEnabled = false,
 		computerEnabled = false,
 		model,
-		includeModelInPrompt = true,
 		personality = "default",
 		includeWorkspaceTree = false,
 		renderMermaid = true,
@@ -885,7 +883,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 			agentsMdFiles: [],
 		} satisfies WorkspaceTree,
 		activeRepoContext: null as ActiveRepoContext | null,
-		cpuModel: undefined as string | undefined,
 		gpu: undefined as string | undefined,
 	};
 
@@ -975,7 +972,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		providedActiveRepoContext !== undefined
 			? Promise.resolve(providedActiveRepoContext)
 			: logger.time("resolveActiveRepoContext", () => resolveActiveRepoContext(resolvedCwd));
-	const cpuModelPromise = logger.time("getCpuModel", getCpuModel);
 	const gpuPromise = logger.time("getCachedGpu", getCachedGpu);
 	// "none" (explicit off — and every subagent) omits the block and skips the file lookup.
 	const bundledPersonality = personality === "none" ? "" : PERSONALITY_SPECS[personality].trim();
@@ -994,7 +990,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		skills,
 		workspaceTree,
 		activeRepoContext,
-		cpuModel,
 		gpu,
 		personalityBlock,
 	] = await Promise.all([
@@ -1019,7 +1014,6 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		withDeadline("loadSkills", skillsPromise, prepDefaults.skills),
 		withDeadline("buildWorkspaceTree", workspaceTreePromise, prepDefaults.workspaceTree),
 		withDeadline("resolveActiveRepoContext", activeRepoContextPromise, prepDefaults.activeRepoContext),
-		withDeadline("getCpuModel", cpuModelPromise, prepDefaults.cpuModel),
 		withDeadline("getCachedGpu", gpuPromise, prepDefaults.gpu),
 		withDeadline("loadPersonalityOverride", personalityPromise, bundledPersonality),
 	]);
@@ -1118,7 +1112,7 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 	];
 	const injectedAlwaysApplyRules = dedupeAlwaysApplyRules(alwaysApplyRules, promptSources);
 
-	const environment = getEnvironmentInfo(cpuModel, gpu);
+	const environment = getEnvironmentInfo(gpu);
 	const data = {
 		systemPromptCustomization: effectiveSystemPromptCustomization,
 		customPrompt: resolvedCustomPrompt,
