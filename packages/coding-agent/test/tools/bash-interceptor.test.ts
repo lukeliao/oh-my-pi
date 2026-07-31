@@ -278,3 +278,43 @@ describe("BashTool argument validation", () => {
 		);
 	});
 });
+
+describe("build-discipline interception (project rules)", () => {
+	const buildRules: BashInterceptorRule[] = [
+		{
+			pattern: "^\\s*(cargo\\s+(build|test|clippy|check)|rustc|maturin)\\s",
+			tool: "bash",
+			message: "禁止裸 cargo/rustc 绕过 build system",
+		},
+		{
+			pattern: "^\\s*docker\\s+(run|build|buildx)\\s",
+			tool: "bash",
+			message: "禁止裸 docker run/build 绕过 build-products.sh",
+		},
+	];
+	const tools = ["bash"];
+
+	it.each([
+		"cargo build --release",
+		"env X=1 cargo build --release",
+		"time cargo build --release",
+		"cd repo; cargo build --release",
+		"cargo build --release | tee log",
+		"bash -c 'cargo build --release'",
+		"docker run -it ubuntu bash",
+		"time docker run ubuntu",
+	])("blocks wrapped bare build %s", command => {
+		expect(checkBashInterception(command, tools, buildRules).block).toBe(true);
+	});
+
+	it.each([
+		"docker ps",
+		"docker logs -f app",
+		"docker system df",
+		"cmake --version",
+		"ls -la",
+		"cargo fmt --check",
+	])("does not block read-only / non-build commands %s", command => {
+		expect(checkBashInterception(command, tools, buildRules).block).toBe(false);
+	});
+});
