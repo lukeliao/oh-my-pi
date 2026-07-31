@@ -110,7 +110,62 @@ function interceptionCandidates(command: string): string[] {
 }
 
 /**
+ * Peel known one-shot wrapper prefixes from a command segment. Returns the
+ * inner command, or the original if no wrapper matched. Quote-aware enough for
+ * `bash -c 'cargo build'`; not a shell parser — the interceptor is a
+ * best-effort nudge, not a hard gate (see docblock on {@link checkBashInterception}).
+ */
+function stripKnownWrappers(command: string): string {
+	let rest = command.trim();
+	let changed = true;
+	while (changed) {
+		changed = false;
+		// env [flags] VAR=val... cmd — parse flags and VAR= pairs, then the rest is the command
+		const envRe = /^env\s+((?:-[A-Za-z](?:\s+\S+)?\s+)*)((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(.*)$/;
+		const envHit = envRe.exec(rest);
+		if (envHit && envHit[3].trim()) {
+			rest = envHit[3].trim();
+			changed = true;
+			continue;
+		}
+		// time / sudo / nohup prefixes
+		const simple = /^(time|sudo|nohup)\s+/.exec(rest);
+		if (simple) {
+			rest = rest.slice(simple[0].length);
+			changed = true;
+			continue;
+		}
+		// bash -c '...' / sh -c '...' — unwrap single/double-quoted payload
+		const shc = /^(?:bash|sh|zsh|dash)\s+-c\s+(['"])(.*)\1/.exec(rest);
+		if (shc) {
+			rest = shc[2];
+			changed = true;
+			continue;
+		}
+	}
+	return rest;
+}
+
+/**
  * Check if a bash command should be intercepted.
+ *
+ * BEST-EFFORT NUDGE, NOT A HARD GATE:
+ * Shell syntax is not fully parseable by regex — exotic wrappers (e.g.
+ * `$(eval ...)`, arbitrary shell functions) are not covered. The interceptor
+ * handles the common agent wrapper patterns (`env X=1 cmd`, `time cmd`,
+ * `sudo`, `nohup`, `bash -c '...'`) via best-effort prefix peeling; anything
+ * beyond that is deliberately not chased. The final acceptance requirement
+ * (manifest.txt + ci-build.sh from clean tree, see AGENTS.md) is a soft rule
+ * today: no tool in the harness automatically runs CI or rejects artifacts
+ * without a manifest — it is the acceptance bar agents are instructed to
+ * meet, not an enforced gate.
+ *
+ * Matching strategy:
+ * 1. Whole-command match (anchored).
+ * 2. Segment scan: split on `;`, `&&`, `|` and test each segment, so
+ *    `cd repo; cargo build` and `cmd | tee log` are caught.
+ * 3. Wrapper-stripped re-match: peel known one-shot prefixes (`env X=1`,
+ *    `time`, `sudo`, `nohup`, `bash -c '...'`) and re-test the inner command.
  *
  * @param command The bash command to check
  * @param availableTools Set of tool names that are available
@@ -140,6 +195,22 @@ export function checkBashInterception(
 					message: `Blocked: ${rule.message}\n\nOriginal command: ${originalCommand}`,
 					suggestedTool: rule.tool,
 				};
+			}
+		}
+
+		// Wrapper-stripped re-match: peel known one-shot prefixes and re-test
+		// the inner command, catching the most common agent wrapper patterns.
+		for (const candidate of candidates) {
+			const inner = stripKnownWrappers(candidate);
+			if (inner && inner !== candidate) {
+				regex.lastIndex = 0;
+				if (regex.test(inner)) {
+					return {
+						block: true,
+						message: `Blocked: ${rule.message}\n\nOriginal command: ${originalCommand}`,
+						suggestedTool: rule.tool,
+					};
+				}
 			}
 		}
 	}
