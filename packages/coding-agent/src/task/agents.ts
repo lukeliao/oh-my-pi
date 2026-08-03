@@ -14,6 +14,7 @@ import reviewerMd from "../prompts/agents/reviewer.md" with { type: "text" };
 import scoutMd from "../prompts/agents/scout.md" with { type: "text" };
 import securityReviewerMd from "../prompts/agents/security-reviewer.md" with { type: "text" };
 import taskMd from "../prompts/agents/task.md" with { type: "text" };
+import theoristMd from "../prompts/agents/theorist.md" with { type: "text" };
 import { AUTO_THINKING } from "../thinking";
 
 import type { AgentDefinition, AgentSource } from "./types";
@@ -48,6 +49,7 @@ const EMBEDDED_AGENT_DEFS: EmbeddedAgentDef[] = [
 	{ fileName: "reviewer.md", template: reviewerMd },
 	{ fileName: "security-reviewer.md", template: securityReviewerMd },
 	{ fileName: "librarian.md", template: librarianMd },
+	{ fileName: "theorist.md", template: theoristMd },
 	{
 		fileName: "task.md",
 		frontmatter: {
