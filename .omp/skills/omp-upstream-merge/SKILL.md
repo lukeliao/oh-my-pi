@@ -1,11 +1,11 @@
 ---
 name: omp-upstream-merge
-description: Fetch upstream oh-my-pi (can1357) changes, rebase our fork, rebuild omp-semble, and deploy to all x64 workstations. Run weekly or as needed.
+description: Fetch upstream oh-my-pi (can1357) changes, rebase our fork, rebuild omp, and deploy to all x64 workstations. Run weekly or as needed.
 ---
 
 # OMP Upstream Merge & Deploy
 
-Standard procedure for pulling upstream `can1357/oh-my-pi` into our `lukeliao/oh-my-pi` fork, resolving conflicts, rebuilding the omp-semble bundle, and deploying to all x64 machines.
+Standard procedure for pulling upstream `can1357/oh-my-pi` into our `lukeliao/oh-my-pi` fork, resolving conflicts, rebuilding the omp bundle, and deploying to all x64 machines.
 
 ## Repo Layout
 
@@ -29,11 +29,11 @@ These files differ from upstream and may conflict on rebase:
 | `packages/coding-agent/src/prompts/system/custom-system-prompt.md` | OKF field attributes in `<file>` tag + `<okf-wiki-protocol>` block |
 | `packages/coding-agent/src/prompts/system/project-prompt.md` | Same OKF additions as custom-system-prompt |
 | `packages/coding-agent/test/system-prompt-dedup.test.ts` | OKF frontmatter test coverage |
-| `scripts/build-semble-omp-package.ts` | omp-semble packaging: builds `semble_rs`, copies `.omp/tools` + model, generates wrapper with `PI_CODING_AGENT_DIR=~/.omp/agent` |
+| `scripts/build-semble-omp-package.ts` | omp packaging: builds `semble_rs`, copies `.omp/tools` + model, generates wrapper with `PI_CODING_AGENT_DIR=~/.omp/agent` |
 | `scripts/semble-benchmark.ts` | Model2Vec benchmark script |
 | `.omp/tools/semble-rs/index.ts` | 9 custom tools (`semble_*`) |
 | `.omp/tools/semble-rs/index.test.ts` | Custom tool tests |
-| `.omp/skills/semble-omp-packaging/SKILL.md` | Build/deploy skill |
+| `.omp/skills/omp-packaging/SKILL.md` | Build/deploy skill |
 | `docs/semble-benchmark-results.md` | Benchmark results |
 
 ## Conflict resolution rules
@@ -122,7 +122,7 @@ bun test packages/coding-agent/test/system-prompt-dedup.test.ts --bail
 bun run check:rs
 ```
 
-### Phase 4: Rebuild & Deploy omp-semble
+### Phase 4: Rebuild & Deploy omp
 
 1. Build bundle:
    ```bash
@@ -136,23 +136,22 @@ bun run check:rs
 
 3. Verify local:
    ```bash
-   omp-semble --version  # should show current upstream version
-   omp --version          # official omp unchanged
+   omp --version  # should show current version with -custom. timestamp
    ```
 
 4. Deploy to x64 machines (`cnp6s`, `ser9`, `desktop`):
    ```bash
-   for host in cnp6s ser9 desktop; do
-     rsync -az --info=progress2 <bundle_dir>/ $host:~/.local/share/omp-semble-bundles/$(basename <bundle_dir>)/
-     ssh $host "cd ~/.local/share/omp-semble-bundles/$(basename <bundle_dir>)/ && ./install.sh --force && rm -rf ~/.omp/agent-semble"
+   for host in liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop; do
+     rsync -az --info=progress2 <bundle_dir>/ $host:~/.local/share/omp-bundles/$(basename <bundle_dir>)/
+     ssh $host "cd ~/.local/share/omp-bundles/$(basename <bundle_dir>)/ && ./install.sh --force"
    done
    ```
    Skip `agx_orin` (ARM64 — needs cross-compile with `CROSS_TARGET=linux-arm64`).
 
 5. Verify remotes:
    ```bash
-   for host in cnp6s ser9 desktop; do
-     ssh $host "~/.local/bin/omp-semble --version"
+   for host in liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop; do
+     ssh $host "~/.local/bin/omp --version"
    done
    ```
 
@@ -160,7 +159,7 @@ bun run check:rs
 
 ```bash
 git add -A
-git commit -m "chore: merge upstream v<version>, rebuild omp-semble"
+git commit -m "chore: merge upstream v<version>, rebuild omp"
 git push --force-with-lease liao main
 ```
 
@@ -168,7 +167,7 @@ git push --force-with-lease liao main
 
 - Check for new breaking changes in upstream changelogs (`packages/coding-agent/CHANGELOG.md`)
 - Update our tool descriptions if upstream renames tools (e.g. `search`→`grep`, `find`→`glob` in v16.2.0)
-- Fix any `agent-semble` → `agent` drift in wrapper template
+- Fix any `omp` → `omp` drift in wrapper template
 - Ensure `~/.omp/agent/config.yml` has `tools.discoveryMode: "off"`
 
 ## Machines
