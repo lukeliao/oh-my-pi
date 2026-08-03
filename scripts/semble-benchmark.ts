@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// semble-benchmark.ts — Compare omp vs omp-semble on targeted tasks.
+// semble-benchmark.ts — Compare omp vs omp on targeted tasks.
 // Each task runs with a hard per-task timeout; timed-out tasks are retried once.
 // Usage: bun scripts/semble-benchmark.ts [--workspace <path>] [--model <model>]
 //        [--timeout <seconds>] [--retries <n>] [--tasks <name,...>]
@@ -91,7 +91,7 @@ const TASKS: Task[] = [
 // ── Types ────────────────────────────────────────────────────────
 interface RunResult {
 	task: string;
-	variant: "omp" | "omp-semble";
+	variant: "omp" | "omp";
 	targetTool: string;
 	targetUsed: boolean;
 	toolsUsed: string[];
@@ -166,8 +166,8 @@ async function runWithTimeout(
 }
 
 // ── Run one task/binary combination ──────────────────────────────
-async function runOne(task: Task, variant: "omp" | "omp-semble"): Promise<RunResult> {
-	const binary = variant === "omp" ? "omp" : "omp-semble";
+async function runOne(task: Task, variant: "omp" | "omp"): Promise<RunResult> {
+	const binary = variant === "omp" ? "omp" : "omp";
 	const startTs = Date.now();
 
 	for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -262,8 +262,8 @@ async function main() {
 		// Small gap to avoid session file race
 		await new Promise(r => setTimeout(r, 1500));
 
-		// Run omp-semble
-		const sbl = await runOne(task, "omp-semble");
+		// Run omp
+		const sbl = await runOne(task, "omp");
 		const delta = sbl.totalTokens - omp.totalTokens;
 		const pct = omp.totalTokens > 0 ? ((delta / omp.totalTokens) * 100).toFixed(0) : "N/A";
 
@@ -299,7 +299,7 @@ async function main() {
 
 	for (const task of filtered) {
 		const omp = allResults.filter(r => r.task === task.name && r.variant === "omp");
-		const sbl = allResults.filter(r => r.task === task.name && r.variant === "omp-semble");
+		const sbl = allResults.filter(r => r.task === task.name && r.variant === "omp");
 
 		const avgO = Math.round(omp.reduce((s, r) => s + r.totalTokens, 0) / omp.length);
 		const avgS = Math.round(sbl.reduce((s, r) => s + r.totalTokens, 0) / sbl.length);
@@ -326,7 +326,7 @@ async function main() {
 	// ── Recommendations ───────────────────────────────────────────
 	console.log("\nRecommendations:");
 	for (const task of filtered) {
-		const sbl = allResults.filter(r => r.task === task.name && r.variant === "omp-semble");
+		const sbl = allResults.filter(r => r.task === task.name && r.variant === "omp");
 		if (sbl.every(r => !r.targetUsed)) {
 			console.log(
 				`  ${task.targetTool}: never selected — rewrite description to differentiate from built-in ${task.baselineTool}`,
