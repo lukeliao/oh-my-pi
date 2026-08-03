@@ -9,7 +9,7 @@
 
 ## Results
 
-| Tool | omp (no sembre) | omp-semble (with sembre) | Δ | Hit |
+| Tool | omp (no sembre) | omp (with sembre) | Δ | Hit |
 |---|---|---|---|---|
 | `semble_tree` | 97,309 | 80,488 | **-17%** | ✅ |
 | `semble_find_pattern` | 155,963 | 115,946 | **-26%** | ✅ |
@@ -48,7 +48,7 @@ bun scripts/semble-benchmark.ts --workspace /home/liao/workspace/robotbridges --
 bun scripts/semble-benchmark.ts --workspace /home/liao/workspace/robotbridges --timeout 120 --model deepseek-v4-flash
 ```
 
-The script runs each task with `omp` (without sembre tools) and `omp-semble` (with sembre tools), comparing total session tokens and whether the target tool was selected.
+The script runs each task with `omp` (without sembre tools) and `omp` (with sembre tools), comparing total session tokens and whether the target tool was selected.
 
 ## Audit: semble_digest and semble_plan (2026-06-17)
 

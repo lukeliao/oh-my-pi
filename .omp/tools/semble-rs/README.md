@@ -23,8 +23,8 @@ For other workspaces:
 1. Copy or symlink this directory into that workspace's `.omp/tools/` or `~/.omp/agent/tools/`.
 2. Set `SEMBLE_RS_BIN` unless the copied tool still has the same relative path to `agents_harness/semble_rs`.
 
-## Packaged omp-semble
+## Packaged omp
 
-Packaged installs (via `scripts/build-semble-omp-package.ts` + `install.sh`) place runtime `index.ts` under `~/.omp/agent-semble/tools/semble-rs/index.ts`. The `omp-semble` wrapper sets absolute `SEMBLE_RS_BIN` and `SEMBLE_MODEL_PATH` to the bundle-local helper/model by default — no manual env vars needed on target machines.
+Packaged installs (via `scripts/build-semble-omp-package.ts` + `install.sh`) place runtime `index.ts` under `~/.omp/agent/tools/semble-rs/index.ts`. The `omp` wrapper sets absolute `SEMBLE_RS_BIN` and `SEMBLE_MODEL_PATH` to the bundle-local helper/model by default — no manual env vars needed on target machines.
 
-Because `semble_rs tree/deps/impact` can still trigger model loading through the underlying library, packaged `omp-semble` always provides `SEMBLE_MODEL_PATH` for all commands. The semantic/non-semantic distinction in the wrapper is about tool-level enforcement; the packaged install eliminates this concern entirely.
+Because `semble_rs tree/deps/impact` can still trigger model loading through the underlying library, packaged `omp` always provides `SEMBLE_MODEL_PATH` for all commands. The semantic/non-semantic distinction in the wrapper is about tool-level enforcement; the packaged install eliminates this concern entirely.
