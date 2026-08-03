@@ -44,8 +44,18 @@ describe("task agent capability descriptions", () => {
 	it("ships every bundled agent without prewalk; hand-off is opt-in via task.agentPrewalk", () => {
 		const agents = loadBundledAgents();
 
-		for (const name of ["task", "scout", "sonic", "reviewer", "designer", "librarian"]) {
+		for (const name of ["task", "scout", "sonic", "reviewer", "designer", "librarian", "theorist"]) {
 			expect(agentByName(agents, name).prewalk).toBeUndefined();
 		}
+	});
+
+	it("routes theorist to the slow model and keeps it read-analyze only (not read-only, no prewalk)", () => {
+		const agents = loadBundledAgents();
+		const theorist = agentByName(agents, "theorist");
+
+		expect(theorist.model).toEqual(["@slow"]);
+		expect(theorist.prewalk).toBeUndefined();
+		expect(theorist.readSummarize).toBeUndefined();
+		expect(isReadOnlyAgent(theorist)).toBe(false);
 	});
 });
