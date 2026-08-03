@@ -1,7 +1,7 @@
-// Build a host-native omp-semble bundle: compiled omp binary + semble_rs helper
+// Build a host-native omp bundle: compiled omp binary + semble_rs helper
 // + custom tools + local Model2Vec model, packaged for distribution to other machines.
 //
-// Usage: bun scripts/build-semble-omp-package.ts [--version X.Y.Z-semble.N] [--out-dir <path>] [--model-path <path>] [--force]
+// Usage: bun scripts/build-semble-omp-package.ts [--version X.Y.Z-custom.N] [--out-dir <path>] [--model-path <path>] [--force]
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -30,12 +30,12 @@ const force = flags.force === true;
 const repoRoot = path.resolve(import.meta.dir, "..");
 
 if (process.platform === "win32") {
-	console.error("omp-semble packaging currently supports POSIX hosts only.");
+	console.error("omp packaging currently supports POSIX hosts only.");
 	process.exit(1);
 }
 
 // Version resolution
-const VERSION_RE = /^\d+\.\d+\.\d+-semble\.[0-9A-Za-z.-]+$/;
+const VERSION_RE = /^\d+\.\d+\.\d+-custom\.[0-9A-Za-z.-]+$/;
 let version = (flags.version as string) || "";
 if (!version) {
 	const now = new Date();
@@ -44,7 +44,7 @@ if (!version) {
 	const d = String(now.getDate()).padStart(2, "0");
 	const h = String(now.getHours()).padStart(2, "0");
 	const min = String(now.getMinutes()).padStart(2, "0");
-	version = `${pkgVersion}-semble.${y}${m}${d}${h}${min}`;
+	version = `${pkgVersion}-custom.${y}${m}${d}${h}${min}`;
 }
 if (!VERSION_RE.test(version)) {
 	console.error(`Invalid semble OMP version: ${version}`);
@@ -69,10 +69,10 @@ for (const f of requiredModelFiles) {
 // Output directory
 const outDir = (flags["out-dir"] as string)
 	? path.resolve(flags["out-dir"] as string)
-	: path.join(process.env.HOME ?? "/tmp", ".local", "share", "omp-semble-bundles");
+	: path.join(process.env.HOME ?? "/tmp", ".local", "share", "omp-bundles");
 
 const platformArch = `${process.platform}-${process.arch}`;
-const bundleName = `omp-semble-${version}-${platformArch}`;
+const bundleName = `omp-${version}-${platformArch}`;
 const bundleDir = path.join(outDir, bundleName);
 
 if (fs.existsSync(bundleDir)) {
@@ -88,7 +88,7 @@ const libDir = path.join(bundleDir, "lib");
 const binDir = path.join(bundleDir, "bin");
 const toolsDir = path.join(bundleDir, "tools", "semble-rs");
 const modelsDir = path.join(bundleDir, "models", "potion-code-16M");
-const skillsDir = path.join(bundleDir, "skills", "semble-omp-packaging");
+const skillsDir = path.join(bundleDir, "skills", "omp-packaging");
 fs.mkdirSync(bundleDir, { recursive: true });
 fs.mkdirSync(libDir, { recursive: true });
 fs.mkdirSync(binDir, { recursive: true });
@@ -97,7 +97,7 @@ fs.mkdirSync(modelsDir, { recursive: true });
 fs.mkdirSync(skillsDir, { recursive: true });
 
 // Copy skill file into bundle
-const skillSrc = path.join(repoRoot, ".omp", "skills", "semble-omp-packaging", "SKILL.md");
+const skillSrc = path.join(repoRoot, ".omp", "skills", "omp-packaging", "SKILL.md");
 if (fs.existsSync(skillSrc)) {
 	fs.copyFileSync(skillSrc, path.join(skillsDir, "SKILL.md"));
 }
@@ -121,13 +121,24 @@ async function build() {
 	console.log("[3/4] Building native addons...");
 	await spawn(["bun", "--cwd=packages/natives", "run", "build"], repoRoot);
 
-	// 4. Build omp with custom version and output path
+	// 4. Build omp with custom version and output path.
+	// Upstream removed OMP_BUILD_VERSION_OVERRIDE in v17.1.x; patch
+	// package.json version temporarily so the binary reports the semble version.
 	console.log(`[4/4] Building omp (version=${version}, outfile=${ompBuildOutfile})...`);
-	await spawn(["bun", "--cwd=packages/coding-agent", "run", "build"], repoRoot, {
-		...Bun.env,
-		OMP_BUILD_VERSION_OVERRIDE: version,
-		OMP_BUILD_OUTFILE: ompBuildOutfile,
-	});
+	const pkgJsonPath = path.join(repoRoot, "packages", "utils", "package.json");
+	const originalPkgJson = fs.readFileSync(pkgJsonPath, "utf-8");
+	const pkgJson = JSON.parse(originalPkgJson);
+	const originalVersion = pkgJson.version;
+	pkgJson.version = version;
+	fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + "\n");
+	try {
+		await spawn(["bun", "--cwd=packages/coding-agent", "run", "build"], repoRoot, {
+			OMP_BUILD_OUTFILE: ompBuildOutfile,
+		});
+	} finally {
+		pkgJson.version = originalVersion;
+		fs.writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + "\n");
+	}
 }
 
 async function spawn(args: string[], cwd: string, extraEnv?: Record<string, string>): Promise<void> {
@@ -179,11 +190,54 @@ async function packageBundle() {
 		fs.copyFileSync(path.join(absModelPath, f), path.join(modelsDir, f));
 	}
 	console.log(`  → model files copied to models/potion-code-16M/`);
+	// Pre-seed mnemopi fastembed-runtime cache. Without this, the first
+	// `recall`/`retain` on a network-restricted host (e.g. no direct npm CDN
+	// access) triggers an on-demand `bun install` of fastembed+onnxruntime-node
+	// into ~/.omp/cache/fastembed-runtime/<version-key>; if that install hangs
+	// the whole agent stalls at "working" with no output (CNP6S incident).
+	const feRuntimeSrc = path.join(process.env.HOME ?? "/root", ".omp", "cache", "fastembed-runtime");
+	if (fs.existsSync(feRuntimeSrc)) {
+		const feRuntimeDst = path.join(bundleDir, "cache", "fastembed-runtime");
+		fs.cpSync(feRuntimeSrc, feRuntimeDst, { recursive: true });
+		console.log(`  → fastembed-runtime cache copied to cache/fastembed-runtime/`);
+	} else {
+		console.warn(`  ⚠ fastembed-runtime cache not found at ${feRuntimeSrc}`);
+		console.warn(`    Bundle will rely on on-demand npm install at first use.`);
+	}
+	// Pre-seed mnemopi fastembed model cache (~/.omp/cache/fastembed/).
+	// fastembed downloads model_optimized.onnx (~12MB) and 4 config/tokenizer
+	// sidecars from HuggingFace on first use; on a network-restricted host that
+	// fetch stalls the same way the runtime install does. Copy the complete,
+	// verified model dir, excluding stale .corrupt-* and tarball artifacts.
+	const feModelSrc = path.join(process.env.HOME ?? "/root", ".omp", "cache", "fastembed");
+	const feModelDst = path.join(bundleDir, "cache", "fastembed");
+	fs.mkdirSync(feModelDst, { recursive: true });
+	let modelCopied = false;
+	const cachedModelFiles: string[] = [];
+	for (const entry of fs.readdirSync(feModelSrc, { withFileTypes: true })) {
+		if (!entry.isDirectory()) continue;
+		const modelVersionDir = path.join(feModelSrc, entry.name);
+		const onnxPath = path.join(modelVersionDir, "model_optimized.onnx");
+		if (!fs.existsSync(onnxPath)) continue;
+		const dstDir = path.join(feModelDst, entry.name);
+		fs.mkdirSync(dstDir, { recursive: true });
+		for (const f of fs.readdirSync(modelVersionDir)) {
+			if (f.startsWith("model_optimized.onnx.corrupt") || f.endsWith(".tar.gz")) continue;
+			fs.copyFileSync(path.join(modelVersionDir, f), path.join(dstDir, f));
+			cachedModelFiles.push(`cache/fastembed/${entry.name}/${f}`);
+		}
+		modelCopied = true;
+		console.log(`  → fastembed model '${entry.name}' copied (weights + sidecars)`);
+	}
+	if (!modelCopied) {
+		console.warn(`  ⚠ no fastembed model with live model_optimized.onnx found under ${feModelSrc}`);
+		console.warn(`    Bundle will rely on HuggingFace download at first use.`);
+	}
 
 	// Write VERSION
 	fs.writeFileSync(path.join(bundleDir, "VERSION"), `${version}\n`);
 
-	// Generate bin/omp-semble wrapper
+	// Generate bin/omp wrapper
 	const wrapper = `#!/usr/bin/env sh
 set -eu
 # Resolve symlinks to find the real bundle root
@@ -197,13 +251,13 @@ while [ -L "$SELF" ]; do
   esac
 done
 ROOT="$(CDPATH= cd -- "$(dirname -- "$SELF")/.." && pwd)"
-export OMP_SEMBLE_HOME="\${OMP_SEMBLE_HOME:-$ROOT}"
+export OMP_HOME="\${OMP_HOME:-$ROOT}"
 export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 export SEMBLE_RS_BIN="\${SEMBLE_RS_BIN:-$ROOT/lib/semble_rs}"
 export SEMBLE_MODEL_PATH="\${SEMBLE_MODEL_PATH:-$ROOT/models/potion-code-16M}"
 exec "$ROOT/lib/omp" "$@"
 `;
-	const wrapperPath = path.join(binDir, "omp-semble");
+	const wrapperPath = path.join(binDir, "omp");
 	fs.writeFileSync(wrapperPath, wrapper);
 	fs.chmodSync(wrapperPath, 0o755);
 
@@ -226,10 +280,10 @@ done
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
-mkdir -p "$PREFIX" "$AGENT_DIR/tools/semble-rs" "$AGENT_DIR/skills/semble-omp-packaging" "$AGENT_DIR"
+mkdir -p "$PREFIX" "$AGENT_DIR/tools/semble-rs" "$AGENT_DIR/skills/omp-packaging" "$AGENT_DIR"
 
 cp "$ROOT/tools/semble-rs/index.ts" "$AGENT_DIR/tools/semble-rs/index.ts"
-cp "$ROOT/skills/semble-omp-packaging/SKILL.md" "$AGENT_DIR/skills/semble-omp-packaging/SKILL.md"
+cp "$ROOT/skills/omp-packaging/SKILL.md" "$AGENT_DIR/skills/omp-packaging/SKILL.md"
 
 if [ ! -f "$AGENT_DIR/config.yml" ]; then
 	touch "$AGENT_DIR/config.yml"
@@ -246,17 +300,73 @@ for f in models.yml mcp.json; do
   fi
 done
 
-OMP_SEMBLE_LINK="$PREFIX/omp-semble"
-if [ -e "$OMP_SEMBLE_LINK" ] || [ -L "$OMP_SEMBLE_LINK" ]; then
+# Pre-seed mnemopi fastembed-runtime cache (avoids first-use on-demand npm install).
+# fastembed-runtime/<version-key>/ encodes the pinned fastembed+ort version, so
+# copy each missing version-key subdir without clobbering existing ones (handles
+# both fresh installs and bundle upgrades that bump the fastembed pin).
+FE_CACHE="\${HOME}/.omp/cache/fastembed-runtime"
+if [ -d "$ROOT/cache/fastembed-runtime" ]; then
+  mkdir -p "$FE_CACHE"
+  for vkey in "$ROOT/cache/fastembed-runtime"/*; do
+    [ -d "$vkey" ] || continue
+    name="$(basename "$vkey")"
+    # Validate completeness: ensureRuntimeInstalled probes only
+    # node_modules/fastembed/package.json, but an interrupted install can leave
+    # that manifest yet miss the .node/.so native bindings that actually load.
+    # Require the native payloads (linux-x64) too; re-seed if any are missing.
+    nm="$FE_CACHE/$name/node_modules"
+    complete=true
+    for f in \
+      "fastembed/package.json" \
+      "onnxruntime-node/bin/napi-v3/linux/x64/onnxruntime_binding.node" \
+      "onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime.so.1" \
+      "@anush008/tokenizers-linux-x64-gnu/tokenizers.linux-x64-gnu.node"; do
+      [ -f "$nm/$f" ] || complete=false
+    done
+    if [ "$complete" = false ]; then
+      rm -rf "$FE_CACHE/$name"
+      cp -r "$vkey" "$FE_CACHE/$name"
+      echo "Pre-seeded fastembed-runtime/$name (skips first-use network install)"
+    fi
+  done
+fi
+
+# Pre-seed mnemopi fastembed model weights + config sidecars
+# (avoids first-use HuggingFace download of model_optimized.onnx + tokenizers).
+FE_MODEL_CACHE="\${HOME}/.omp/cache/fastembed"
+if [ -d "$ROOT/cache/fastembed" ]; then
+  mkdir -p "$FE_MODEL_CACHE"
+  for model_dir in "$ROOT/cache/fastembed"/*; do
+    [ -d "$model_dir" ] || continue
+    name="$(basename "$model_dir")"
+    # Validate completeness against the full sidecar set fastembed requires
+    # (config.json, tokenizer.json, tokenizer_config.json, special_tokens_map.json
+    # — see ensureFastembedModelSidecars). A stale dir from a failed sidecar
+    # download passes a bare existence check but crashes at load; re-seed if
+    # model_optimized.onnx or any required sidecar is missing.
+    complete=true
+    for f in model_optimized.onnx config.json tokenizer.json tokenizer_config.json special_tokens_map.json; do
+      [ -f "$FE_MODEL_CACHE/$name/$f" ] || complete=false
+    done
+    if [ "$complete" = false ]; then
+      rm -rf "$FE_MODEL_CACHE/$name"
+      cp -r "$model_dir" "$FE_MODEL_CACHE/$name"
+      echo "Pre-seeded fastembed model $name (weights + sidecars)"
+    fi
+  done
+fi
+
+OMP_LINK="$PREFIX/omp"
+if [ -e "$OMP_LINK" ] || [ -L "$OMP_LINK" ]; then
 	if [ "$FORCE" = false ]; then
-		echo "Refusing to overwrite existing omp-semble at $OMP_SEMBLE_LINK"
+		echo "Refusing to overwrite existing omp at $OMP_LINK"
 		exit 1
 	fi
-	rm -f "$OMP_SEMBLE_LINK"
+	rm -f "$OMP_LINK"
 fi
-ln -s "$ROOT/bin/omp-semble" "$OMP_SEMBLE_LINK"
+ln -s "$ROOT/bin/omp" "$OMP_LINK"
 
-echo "Installed omp-semble: $OMP_SEMBLE_LINK"
+echo "Installed omp: $OMP_LINK"
 echo "Agent dir: $AGENT_DIR"
 `;
 	const installerPath = path.join(bundleDir, "install.sh");
@@ -264,25 +374,25 @@ echo "Agent dir: $AGENT_DIR"
 	fs.chmodSync(installerPath, 0o755);
 
 	// Generate README.md
-	const readme = `# omp-semble ${version}
+	const readme = `# omp ${version}
 
 Custom oh-my-pi distribution with integrated semble_rs code-search tools.
 
-**This installs \`omp-semble\`, never overwrites official \`omp\`.**
+**This installs \`omp\`, never overwrites official \`omp\`.**
 
 ## Verify
 
 | Command | Expected |
 |---|---|
-| \`omp-semble --version\` | Contains \`${version}\` (with \`-semble.\`) |
-| \`omp --version\` | Does NOT contain \`-semble.\` |
-| \`which omp-semble\` | Points to your install prefix |
+| \`omp --version\` | Contains \`${version}\` (with \`-custom.\`) |
+| \`omp --version\` | Does NOT contain \`-custom.\` |
+| \`which omp\` | Points to your install prefix |
 | \`which omp\` | Points to official install (unchanged) |
 
 ## Wrapper defaults
 
-The \`omp-semble\` wrapper sets:
-- \`PI_CODING_AGENT_DIR\` → \`~/.omp/agent-semble\` (isolated from official omp)
+The \`omp\` wrapper sets:
+- \`PI_CODING_AGENT_DIR\` → \`~/.omp/agent\` (isolated from official omp)
 - \`SEMBLE_RS_BIN\` → \`<bundle>/lib/semble_rs\`
 - \`SEMBLE_MODEL_PATH\` → \`<bundle>/models/potion-code-16M\`
 
@@ -291,8 +401,8 @@ These are only defaults; explicitly set env vars take precedence.
 ## Install
 
 \\\`\\\`\\\`bash
-./install.sh                    # defaults: ~/.local/bin, ~/.omp/agent-semble
-./install.sh --prefix /usr/local/bin --agent-dir ~/.omp/agent-semble
+./install.sh                    # defaults: ~/.local/bin, ~/.omp/agent
+./install.sh --prefix /usr/local/bin --agent-dir ~/.omp/agent
 ./install.sh --force            # overwrite existing symlink
 \\\`\\\`\\\`
 `;
@@ -301,13 +411,43 @@ These are only defaults; explicitly set env vars take precedence.
 	// Generate SHA256SUMS
 	const sumEntries: string[] = [];
 	const filesToSum = [
-		"bin/omp-semble",
+		"bin/omp",
 		"lib/omp",
 		`lib/semble_rs${exeSuffix}`,
 		"tools/semble-rs/index.ts",
-		"skills/semble-omp-packaging/SKILL.md",
+		"skills/omp-packaging/SKILL.md",
 		...requiredModelFiles.map(f => `models/potion-code-16M/${f}`),
+		// Pre-seeded fastembed model weights + sidecars (the corrupt-ONNX
+		// failure mode is exactly what these hashes defend against).
+		...cachedModelFiles,
 	];
+	// Runtime cache: hash version manifests + the actual native payloads that
+	// load at runtime (the executables, not just package.json). On linux-x64
+	// these are onnxruntime_binding.node + libonnxruntime*.so (the ORT backend)
+	// and the @anush008 tokenizers .node. A truncated/mismatched binding would
+	// pass package.json checks but segfault at load — exactly the failure mode
+	// the corrupt-ONNX incident taught us to defend against.
+	const runtimeCacheDir = path.join(bundleDir, "cache", "fastembed-runtime");
+	if (fs.existsSync(runtimeCacheDir)) {
+		for (const vkey of fs.readdirSync(runtimeCacheDir, { withFileTypes: true })) {
+			if (!vkey.isDirectory()) continue;
+			const nm = `cache/fastembed-runtime/${vkey.name}/node_modules`;
+			// Version manifests.
+			for (const pkg of ["fastembed", "onnxruntime-node", "onnxruntime-common"]) {
+				const m = `${nm}/${pkg}/package.json`;
+				if (fs.existsSync(path.join(bundleDir, m))) filesToSum.push(m);
+			}
+			// ORT native bindings (linux-x64; bundle is host-native x64 only).
+			const ortBin = `${nm}/onnxruntime-node/bin/napi-v3/linux/x64`;
+			for (const f of ["onnxruntime_binding.node", "libonnxruntime.so.1", "libonnxruntime_providers_shared.so"]) {
+				const p = `${ortBin}/${f}`;
+				if (fs.existsSync(path.join(bundleDir, p))) filesToSum.push(p);
+			}
+			// Tokenizers native binding (linux-x64-gnu).
+			const tok = `${nm}/@anush008/tokenizers-linux-x64-gnu/tokenizers.linux-x64-gnu.node`;
+			if (fs.existsSync(path.join(bundleDir, tok))) filesToSum.push(tok);
+		}
+	}
 	for (const rel of filesToSum) {
 		const absPath = path.join(bundleDir, rel);
 		if (!fs.existsSync(absPath)) continue;
@@ -321,7 +461,7 @@ These are only defaults; explicitly set env vars take precedence.
 	fs.writeFileSync(path.join(bundleDir, "SHA256SUMS"), `${sumEntries.join("\n")}\n`);
 
 	console.log(`\nBundle: ${bundleDir}`);
-	console.log(`  omp-semble ${version} (${platformArch})`);
+	console.log(`  omp ${version} (${platformArch})`);
 	console.log(`  ${sumEntries.length} files checksummed`);
 }
 
