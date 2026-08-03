@@ -83,6 +83,11 @@ export const isDeepseekModelIdOrName = memo((value: string): boolean => {
 	return value.toLowerCase().includes("deepseek");
 });
 
+/** DeepSeek V4 Flash by id or display name (distinct from V4 Pro for the effort ladder). */
+export const isDeepseekV4FlashModelId = memo((value: string): boolean => {
+	return /deepseek[-_ ]?v4[-_ ]?flash/i.test(value);
+});
+
 /** Xiaomi MiMo family by id or display name. */
 export const isMimoModelIdOrName = memo((value: string): boolean => {
 	return value.toLowerCase().includes("mimo");

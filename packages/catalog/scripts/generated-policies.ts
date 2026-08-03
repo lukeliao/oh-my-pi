@@ -381,6 +381,18 @@ function applyGeneratedModelPolicy(model: ModelSpec<Api>): void {
 			requiresReasoningContentForToolCalls: true,
 		};
 	}
+	if (model.api === "openai-completions" && model.provider === "deepseek" && model.id === "deepseek-v4-flash") {
+		// Official DeepSeek V4 Flash accepts xhigh as a request effort and maps it
+		// server-side to high (official Thinking Mode effort table). Declare the
+		// alias so resolveOpenAiReasoningEffort maps xhigh→high instead of throwing
+		// requireSupportedEffort; the wire ladder stays the honest low/high/max.
+		// V4 Pro is intentionally excluded: its documented xhigh→max mapping is
+		// marked "early August 2026" and is not live yet.
+		model.compat = {
+			...(model.compat ?? {}),
+			reasoningEffortMap: { ...(model.compat?.reasoningEffortMap ?? {}), xhigh: "high" },
+		};
+	}
 	const parsedModel = parseKnownModel(model.id);
 	const applyPatchToolType = inferGeneratedApplyPatchToolType(model, parsedModel);
 	if (applyPatchToolType) {

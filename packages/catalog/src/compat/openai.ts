@@ -14,6 +14,7 @@ import {
 	isAnthropicNamespacedModelId,
 	isClaudeModelId,
 	isDeepseekModelIdOrName,
+	isDeepseekV4FlashModelId,
 	isGlm52ReasoningEffortModelId,
 	isGrokReasoningEffortCapable,
 	isKimiK3ModelId,
@@ -178,9 +179,15 @@ const MIMO_REASONING_EFFORT_MAP: NonNullable<OpenAICompat["reasoningEffortMap"]>
 	xhigh: "high",
 };
 
+/** DeepSeek V4 Flash accepts xhigh as a request effort and maps it server-side to high (official Thinking Mode effort table). V4 Pro is excluded: its documented xhigh→max mapping is marked "early August 2026" and is not live yet. */
+const DEEPSEEK_V4_FLASH_REASONING_EFFORT_MAP: NonNullable<OpenAICompat["reasoningEffortMap"]> = {
+	xhigh: "high",
+};
+
 function mergeModelReasoningEffortMap(
 	compat: ResolvedOpenAISharedCompat,
 	modelId: string,
+	provider: string,
 	isMimoReasoningEffortModel: boolean,
 ): void {
 	let detected: NonNullable<OpenAICompat["reasoningEffortMap"]>;
@@ -188,6 +195,11 @@ function mergeModelReasoningEffortMap(
 		detected = KIMI_K3_REASONING_EFFORT_MAP;
 	} else if (isMimoReasoningEffortModel) {
 		detected = MIMO_REASONING_EFFORT_MAP;
+	} else if (provider === "deepseek" && isDeepseekV4FlashModelId(modelId)) {
+		// Direct official DeepSeek route only: the V4 Flash xhigh→high alias is
+		// an official-API contract. Proxies (NVIDIA/Fireworks/OpenCode/…) serve
+		// Flash under their own effort vocabularies and are left unmapped.
+		detected = DEEPSEEK_V4_FLASH_REASONING_EFFORT_MAP;
 	} else {
 		return;
 	}
@@ -612,7 +624,7 @@ export function buildOpenAICompat(spec: ModelSpec<"openai-completions">): Resolv
 	if (spec.compat?.omitReasoningEffort === undefined && !compat.supportsReasoningEffort) {
 		compat.omitReasoningEffort = true;
 	}
-	mergeModelReasoningEffortMap(compat, spec.id, isMimoReasoningEffortModel);
+	mergeModelReasoningEffortMap(compat, spec.id, provider, isMimoReasoningEffortModel);
 
 	const whenThinkingPolicy =
 		spec.compat?.whenThinking ?? (isOpenCodeProvider && spec.reasoning ? OPENCODE_WHEN_THINKING : undefined);
@@ -625,7 +637,7 @@ export function buildOpenAICompat(spec: ModelSpec<"openai-completions">): Resolv
 		if (whenThinkingPolicy.omitReasoningEffort === undefined && !variant.supportsReasoningEffort) {
 			variant.omitReasoningEffort = true;
 		}
-		mergeModelReasoningEffortMap(variant, spec.id, isMimoReasoningEffortModel);
+		mergeModelReasoningEffortMap(variant, spec.id, provider, isMimoReasoningEffortModel);
 		compat.whenThinking = variant;
 	}
 

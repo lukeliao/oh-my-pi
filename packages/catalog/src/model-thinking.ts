@@ -24,6 +24,7 @@ import {
 import {
 	findThinkingVariantToken,
 	isDeepseekModelIdOrName,
+	isDeepseekV4FlashModelId,
 	isGlm52ReasoningEffortModelId,
 	isKimiK3ModelId,
 	isMimoModelIdOrName,
@@ -64,8 +65,10 @@ const GPT_5_1_CODEX_MINI_EFFORTS: readonly Effort[] = [Effort.Medium, Effort.Hig
 const LOW_MEDIUM_HIGH_REASONING_EFFORTS: readonly Effort[] = [Effort.Low, Effort.Medium, Effort.High];
 /** Wire-exact `low`/`high`/`max` scale used by Kimi K3 and OpenRouter DeepSeek V4 Flash 0731. */
 const LOW_HIGH_MAX_REASONING_EFFORTS: readonly Effort[] = [Effort.Low, Effort.High, Effort.Max];
-/** Wire-exact two-tier scale (`high`/`max`): GLM-5.2 on Z.ai/Umans/Ollama Cloud/Baseten, Sakana Fugu, DeepSeek. */
+/** Wire-exact two-tier scale (`high`/`max`): GLM-5.2 on Z.ai/Umans/Ollama Cloud/Baseten, Sakana Fugu, DeepSeek V4 Pro. */
 const HIGH_MAX_REASONING_EFFORTS: readonly Effort[] = [Effort.High, Effort.Max];
+/** DeepSeek V4 Flash official three-tier scale (`low`/`high`/`max`): the API effort map is low→low, high→high, xhigh→high, max→max (official Thinking Mode docs). */
+const DEEPSEEK_V4_FLASH_REASONING_EFFORTS: readonly Effort[] = [Effort.Low, Effort.High, Effort.Max];
 /** OpenRouter's DeepSeek route accepts only `high`. */
 const HIGH_ONLY_REASONING_EFFORTS: readonly Effort[] = [Effort.High];
 /**
@@ -372,6 +375,18 @@ function getModelDefinedEfforts<TApi extends Api>(
 			return bareModelId(spec.id) === "deepseek-v4-flash-0731"
 				? LOW_HIGH_MAX_REASONING_EFFORTS
 				: HIGH_ONLY_REASONING_EFFORTS;
+		}
+		// Official DeepSeek effort map (Thinking Mode docs, 7/31): V4 Flash
+		// exposes low/high/max (low→low, high→high, xhigh→high, max→max).
+		// V4 Pro keeps the effective high/max surface: the documented xhigh→max
+		// mapping is marked "early August 2026" and is not yet live, so we do
+		// not bake it. Proxies without confirmed low-tier support stay
+		// conservative on high/max.
+		if (
+			spec.provider === "deepseek" &&
+			(isDeepseekV4FlashModelId(spec.id) || isDeepseekV4FlashModelId(spec.name ?? ""))
+		) {
+			return DEEPSEEK_V4_FLASH_REASONING_EFFORTS;
 		}
 		return HIGH_MAX_REASONING_EFFORTS;
 	}
