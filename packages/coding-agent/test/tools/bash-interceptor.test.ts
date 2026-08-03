@@ -298,11 +298,13 @@ describe("build-discipline interception (project rules)", () => {
 		"cargo build --release",
 		"env X=1 cargo build --release",
 		"time cargo build --release",
+		"sudo cargo build --release",
 		"cd repo; cargo build --release",
 		"cargo build --release | tee log",
 		"bash -c 'cargo build --release'",
 		"docker run -it ubuntu bash",
 		"time docker run ubuntu",
+		"sudo docker run ubuntu",
 	])("blocks wrapped bare build %s", command => {
 		expect(checkBashInterception(command, tools, buildRules).block).toBe(true);
 	});
