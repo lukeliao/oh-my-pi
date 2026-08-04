@@ -23,6 +23,7 @@ import { formatMatchLine } from "@oh-my-pi/pi-tui/tools/match-line-format";
 
 import { resolveToolSearchScope } from "./path-utils";
 import { toPathList } from "@oh-my-pi/pi-tui/render/render-utils";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { isRawSelector } from "./read-selector";
 import { capParseErrors, formatCodeFrameLine, formatParseErrors } from "@oh-my-pi/pi-tui/render/render-utils";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
@@ -210,6 +211,19 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 				},
 			});
 			const { searchPath: resolvedSearchPath, scopePath, isDirectory, multiTargets, globFilter } = scope;
+
+			// sandbox.forbidRead — block searches rooted under a denied path.
+			const forbidTargets = [resolvedSearchPath];
+			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
+			for (const forbidTarget of forbidTargets) {
+				const forbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					forbidTarget,
+				);
+				if (forbidError) {
+					throw new ToolError(forbidError);
+				}
+			}
 
 			const DEFAULT_AST_LIMIT = 50;
 			const result = multiTargets
