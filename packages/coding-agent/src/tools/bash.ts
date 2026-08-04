@@ -43,9 +43,10 @@ import type { ToolSession } from ".";
 import { truncateForPrompt } from "./approval";
 import { type BashInteractiveResult, runInteractiveBashPty } from "./bash-interactive";
 import type { ShellTrace } from "@oh-my-pi/pi-wire";
-import { checkBashInterception } from "./bash-interceptor";
+import { checkBashInterception, checkForbidReadBash } from "./bash-interceptor";
 import { rewriteGitWorktreeAdd } from "./bash-worktree-rewrite";
 import { canUseInteractiveBashPty } from "./bash-pty-selection";
+import { evaluateBashRules, getPermissionRules } from "../permission/rules";
 import { resolveEvalBackends } from "./eval-backends";
 import { invalidateGithubCacheForBashCommand, invalidateGithubCacheForBashResult } from "./gh-cache-invalidation";
 import { serviceLogs, startService, type ServiceReady } from "../launch/services";
@@ -1476,6 +1477,18 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 
 		const interception = this.#interception(rawCommand, command, name, ctx?.toolNames ?? []);
 		if (interception) throw new ToolError(interception);
+
+		// sandbox.forbidRead — conservative bash subset: block a read-style
+		// command (`cat`/`head`/`tail`/`less`/`more`) whose literal path argument
+		// is denied. No-op unless the deny list is configured. This is a narrow
+		// mitigation, not a hard gate (see checkForbidReadBash).
+		const forbidReadBash = await checkForbidReadBash(
+			rawCommand,
+			this.session.settings.get("sandbox.forbidRead"),
+		);
+		if (forbidReadBash.block) {
+			throw new ToolError(forbidReadBash.message ?? "Command blocked");
+		}
 
 		if (cfgWorktreeClone.get(this.session.settings)) {
 			command = rewriteGitWorktreeAdd(command, resolveCliEntryCmd());
