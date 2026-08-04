@@ -39,9 +39,10 @@ import { TerminalGraphicsDecoder } from "../utils/terminal-graphics";
 import type { ToolSession } from ".";
 import { truncateForPrompt } from "./approval";
 import { type BashInteractiveResult, runInteractiveBashPty } from "./bash-interactive";
-import { checkBashInterception } from "./bash-interceptor";
+import { checkBashInterception, checkForbidReadBash } from "./bash-interceptor";
 import { rewriteGitWorktreeAdd } from "./bash-worktree-rewrite";
 import { canUseInteractiveBashPty } from "./bash-pty-selection";
+import { evaluateBashRules, getPermissionRules } from "../permission/rules";
 import { expandInternalUrls, type InternalUrlExpansionOptions } from "./bash-skill-urls";
 import { resolveEvalBackends } from "./eval-backends";
 import { invalidateGithubCacheForBashCommand } from "./gh-cache-invalidation";
@@ -596,6 +597,34 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 	readonly approval = (args: unknown): ToolApprovalDecision => {
 		const rawCommand = (args as Partial<BashToolInput>).command;
 		const command = typeof rawCommand === "string" ? rawCommand : "";
+		// WS2 permission rules run before the legacy bash patterns: deny blocks,
+		// ask prompts through the standard approval flow, allow skips the prompt.
+		// With no rules configured this is a no-op and behavior is unchanged.
+		const permissionRules = getPermissionRules(this.session.settings.get("permission.rules"));
+		const permissionDecision = evaluateBashRules(permissionRules, command);
+		if (permissionDecision.action === "deny") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "deny",
+				reason: permissionDecision.matched
+					? `Blocked by permission rule: ${permissionDecision.matched.match}`
+					: "Blocked by permission rule: dynamic bash command",
+			};
+		}
+		if (permissionDecision.action === "ask") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "prompt",
+				reason: permissionDecision.matched
+					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
+					: "Prompt required by permission rule",
+			};
+		}
+		if (permissionDecision.action === "allow") {
+			return { tier: "write", policy: "allow" };
+		}
 		const patternRules = getBashApprovalPatternRules(this.session.settings.get("bash.patterns"));
 		const shell = this.session.settings.get("bash.allowCompoundCommands")
 			? this.session.settings.getShellConfig().shell
@@ -1047,6 +1076,18 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 					throw new ToolError(interception.message ?? "Command blocked");
 				}
 			}
+		}
+
+		// sandbox.forbidRead — conservative bash subset: block a read-style
+		// command (`cat`/`head`/`tail`/`less`/`more`) whose literal path argument
+		// is denied. No-op unless the deny list is configured. This is a narrow
+		// mitigation, not a hard gate (see checkForbidReadBash).
+		const forbidReadBash = await checkForbidReadBash(
+			rawCommand,
+			this.session.settings.get("sandbox.forbidRead"),
+		);
+		if (forbidReadBash.block) {
+			throw new ToolError(forbidReadBash.message ?? "Command blocked");
 		}
 
 		if (this.session.settings.get("worktree.clone")) {

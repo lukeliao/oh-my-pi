@@ -5,7 +5,10 @@
  * this interceptor provides helpful error messages directing them to use
  * the specialized tools instead.
  */
+import * as os from "node:os";
+import * as path from "node:path";
 import { type BashInterceptorRule, DEFAULT_BASH_INTERCEPTOR_RULES } from "../config/settings-schema";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { extractFlatShellCommandSegments } from "./shell-tokenize";
 
 export interface InterceptionResult {
@@ -215,5 +218,43 @@ export function checkBashInterception(
 		}
 	}
 
+	return { block: false };
+}
+
+/** Read-style commands whose first argument is a file path (map to the `read` tool). */
+const FORBID_READ_BASH_COMMANDS = new Set(["cat", "head", "tail", "less", "more"]);
+
+/**
+ * Conservative `sandbox.forbidRead` gate for bash. Only blocks a read-style
+ * command (`cat`/`head`/`tail`/`less`/`more`) whose FIRST argument is a
+ * literal path that resolves under a denied entry — e.g. `cat ~/.ssh/id_rsa`.
+ * This is deliberately narrow: any token needing shell evaluation (quotes,
+ * `$VAR`, globs, command substitution, redirection, …) is SKIPPED rather than
+ * guessed at, because bash is not soundly parseable in the general case. It is
+ * a mitigation, not a hard gate — eval/browser/MCP/extension reads stay out of
+ * scope. No-op unless `sandbox.forbidRead` is configured.
+ */
+export async function checkForbidReadBash(command: string, entries: string[] | undefined): Promise<InterceptionResult> {
+	const raw = entries ?? [];
+	if (raw.length === 0) return { block: false };
+
+	for (const candidate of interceptionCandidates(command)) {
+		const inner = stripKnownWrappers(candidate);
+		const match = /^([A-Za-z][A-Za-z0-9_]*)[ \t]+(\S+)(?:[ \t]|$)/.exec(inner);
+		if (!match) continue;
+		const cmd = match[1]!;
+		if (!FORBID_READ_BASH_COMMANDS.has(cmd)) continue;
+		let token = match[2]!;
+		// Conservative: skip anything that needs shell evaluation or could be a flag.
+		if (token.startsWith("-")) continue;
+		if (/[*?[\]{}"'$()`<>\\;|&]/.test(token)) continue;
+		if (token === "~") token = os.homedir();
+		else if (token.startsWith("~/")) token = path.join(os.homedir(), token.slice(2));
+		if (!path.isAbsolute(token)) continue;
+		const forbidden = await checkPathForbidden(raw, token);
+		if (forbidden) {
+			return { block: true, message: forbidden, suggestedTool: "read" };
+		}
+	}
 	return { block: false };
 }

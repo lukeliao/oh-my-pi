@@ -21,6 +21,7 @@ import {
 } from "@oh-my-pi/pi-utils/ar";
 import { getEditStore } from "../edit/store";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { formatHashlineHeader } from "./hashline-format";
 import type { LocalProtocolOptions } from "../internal-urls/local-protocol";
 import { InternalUrlRouter } from "../internal-urls/router";
@@ -1145,6 +1146,21 @@ export class GrepTool implements AgentTool<typeof searchSchema, GrepToolDetails>
 					throw new ToolError(
 						`Path not found: ${missingPaths.join(", ")}; list each target in the semicolon-delimited \`path\`${archiveHint}`,
 					);
+				}
+				// sandbox.forbidRead — block searches rooted under a denied path.
+				// Check the resolved scope and every explicit target base path so a
+				// multi-path search that includes a denied directory is caught.
+				const forbidTargets = [searchPath];
+				if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
+				if (exactFilePaths) forbidTargets.push(...exactFilePaths);
+				for (const forbidTarget of forbidTargets) {
+					const forbidError = await checkPathForbidden(
+						this.session.settings.get("sandbox.forbidRead"),
+						forbidTarget,
+					);
+					if (forbidError) {
+						throw new ToolError(forbidError);
+					}
 				}
 				const baseDisplayMode = resolveFileDisplayMode(this.session);
 
