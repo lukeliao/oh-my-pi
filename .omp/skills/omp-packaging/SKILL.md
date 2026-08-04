@@ -10,7 +10,7 @@ Build a host-native omp bundle that ships all 9 `semble_*` custom tools, the `se
 ## On a machine with the source repo (`agents_harness/oh-my-pi`)
 
 1. Confirm cwd is `agents_harness/oh-my-pi`.
-2. Confirm model exists at `${SEMBLE_MODEL_PATH:-$HOME/.cache/semble/models/potion-code-16M}` and contains `config.json`, `model.safetensors`, `modules.json`, `tokenizer.json`.
+2. Confirm model exists at `${SEMBLE_MODEL_PATH:-$HOME/.cache/semble/models/potion-code-16M-v2}` and contains `config.json`, `model.safetensors`, `modules.json`, `tokenizer.json`. (v2 = potion-code-16M-v2, float16; verified 2026-08-04: R@1 72→75%, R@5 90→97%, R@10 95→100%, MRR 0.7871→0.8434 on eval_set_100.)
 3. Build the bundle:
    ```bash
    bun scripts/build-semble-omp-package.ts --model-path "$SEMBLE_MODEL_PATH"
