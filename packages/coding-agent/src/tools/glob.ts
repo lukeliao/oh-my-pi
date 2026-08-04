@@ -13,6 +13,7 @@ import { isScoutSpawnable } from "../task/spawn-policy";
 import type { ToolSession } from ".";
 import { resolveToolTier } from "./approval";
 import { isFindEnabled } from "./jfind";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { applyListLimit } from "@oh-my-pi/pi-tui/tools/list-limit";
 import {
 	expandDelimitedPathEntries,
@@ -211,6 +212,13 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 			for (const target of targets) {
 				if (target.searchPath === "/") {
 					throw new ToolError("Searching from root directory '/' is not allowed");
+				}
+				const forbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					target.searchPath,
+				);
+				if (forbidError) {
+					throw new ToolError(forbidError);
 				}
 			}
 

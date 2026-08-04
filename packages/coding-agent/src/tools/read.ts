@@ -45,6 +45,7 @@ import {
 	sessionResolveContext,
 } from "../internal-urls";
 import { isMarkdownPath } from "@oh-my-pi/pi-tui/lang-from-path";
+import { checkPathForbidden } from "../permission/forbid-read";
 import readDescription from "../prompts/tools/read.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
 import {
@@ -1661,6 +1662,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 			const archivePath = await resolveArchiveReadPath(this.session, readPath, suffixCache, signal);
 			if (archivePath) {
 				if (question !== undefined) throw new ToolError(IMAGE_QUESTION_SELECTOR_ERROR);
+				// sandbox.forbidRead — gate the archive container itself so member
+				// reads cannot bypass the deny list via `container:member` syntax.
+				const archiveForbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					archivePath.absolutePath,
+				);
+				if (archiveForbidError) {
+					throw new ToolError(archiveForbidError);
+				}
 				const archiveSubPath = located
 					? { path: archivePath.archiveSubPath, sel: located.sel }
 					: splitPathAndSel(archivePath.archiveSubPath);
@@ -1676,7 +1686,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 			const sqlitePath = await resolveSqliteReadPath(this.session, readPath, suffixCache, signal);
 			if (sqlitePath) {
-				return readSqlite(sqlitePath, signal);
+				// sandbox.forbidRead — gate the sqlite container itself (see archive branch).
+				const sqliteForbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					sqlitePath.absolutePath,
+				);
+				if (sqliteForbidError) {
+					throw new ToolError(sqliteForbidError);
+				}
+				return this.#readSqlite(sqlitePath, signal);
 			}
 
 			// `bin:main`, `bin:imports`, `bin:main:10-40`: an executable/IDB prefix
@@ -1710,6 +1728,18 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 		let absolutePath = await resolveReadPathAsync(localReadPath, this.session.cwd);
 		let suffixResolution: { from: string; to: string } | undefined;
+
+		// sandbox.forbidRead — deny-list gate BEFORE any path I/O (stat, suffix
+		// resolution): a denied target fails closed even when the file does not
+		// exist, so the deny list cannot be probed for existence. The post-stat
+		// check below still catches suffix-resolution escapes into denied dirs.
+		const preForbidError = await checkPathForbidden(
+			this.session.settings.get("sandbox.forbidRead"),
+			absolutePath,
+		);
+		if (preForbidError) {
+			throw new ToolError(preForbidError);
+		}
 
 		let isDirectory = false;
 		let fileSize = 0;
@@ -1782,6 +1812,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// filesystem access keeps using absolutePath. Ordinary callers pass no
 		// lexical path, so this is identical to absolutePath for them.
 		const renderAbsolutePath = lexicalAbsolutePath ?? absolutePath;
+
+		// sandbox.forbidRead — deny-list gate for the built-in path-reading tools.
+		const forbidError = await checkPathForbidden(
+			this.session.settings.get("sandbox.forbidRead"),
+			absolutePath,
+		);
+		if (forbidError) {
+			throw new ToolError(forbidError);
+		}
 
 		if (isDirectory) {
 			if (question !== undefined) throw new ToolError(IMAGE_QUESTION_SELECTOR_ERROR);
@@ -2562,6 +2601,20 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 			...(display ? { displayContent: display } : {}),
 		};
 
+		// sandbox.forbidRead — local:// resolves to real on-disk paths; gate the
+		// resolved target so internal-URL reads cannot bypass the deny list.
+		// Harness-managed schemes (skill:// artifact:// memory:// agent://
+		// rule://) resolve to controlled resources and remain ungated.
+		if (extractUriScheme(url) === "local" && resource.sourcePath) {
+			const localForbidError = await checkPathForbidden(
+				this.session.settings.get("sandbox.forbidRead"),
+				resource.sourcePath,
+			);
+			if (localForbidError) {
+				throw new ToolError(localForbidError);
+			}
+		}
+
 		if (resource.shape === "value") {
 			if (parsedSel.kind !== "none" && parsedSel.kind !== "raw") {
 				throw new ToolError("Cannot combine query extraction with line selectors");
@@ -2580,6 +2633,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 	}
 
 	/**
+
 	 * Read directory contents as a formatted listing, sliced by a single-range or tail selector.
 	 *
 	 * The root level is uncapped; long listings page through line selectors and the

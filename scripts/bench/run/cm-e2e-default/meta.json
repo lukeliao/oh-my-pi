@@ -1,0 +1,36 @@
+{
+  "seeded_at": "2026-08-03T13:05:54.316Z",
+  "model": "deepseek-v4-flash",
+  "nonces": {
+    "pruned": "pruned354316",
+    "control": "control358283"
+  },
+  "seed_usage": {
+    "pruned": {
+      "prompt_tokens": 88820,
+      "completion_tokens": 64,
+      "total_tokens": 88884,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 64
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 88820
+    },
+    "control": {
+      "prompt_tokens": 87799,
+      "completion_tokens": 64,
+      "total_tokens": 87863,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 64
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 87799
+    }
+  }
+}

@@ -149,6 +149,25 @@ export const cfgBashInterceptorPatterns = register({
 	default: DEFAULT_BASH_INTERCEPTOR_RULES,
 });
 
+// WS3 forbid_read — deny-list gate for the built-in path-reading tools
+// (read, glob, grep, ast_grep). This is a process-internal mitigation, NOT
+// an OS-level hard gate: it deliberately does NOT cover bash (beyond a
+// conservative parameter subset in the interceptor), the eval kernel,
+// browser, MCP, or extension tools. Empty by default so behavior is
+// unchanged until paths are configured.
+export const cfgSandboxForbidRead = register({
+	id: "sandbox.forbidRead",
+	type: "array",
+	default: EMPTY_STRING_ARRAY,
+	ui: {
+		tab: "shell",
+		group: "Sandbox",
+		label: "Forbid Reading Paths",
+		description:
+			"Absolute paths that the built-in read/glob/grep/search tools must not read. ${VAR}, ${VAR:-default}, and ~ expand; only absolute paths are accepted. A directory entry blocks everything beneath it. Covers only the built-in read/glob/grep/search tools — bash, eval, browser, MCP, and extension reads are NOT in scope.",
+	},
+});
+
 export const cfgBashDirenv = register({
 	id: "bash.direnv",
 	type: "enum",
