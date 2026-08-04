@@ -218,7 +218,7 @@ export const TAB_GROUPS: Record<SettingTab, readonly string[]> = {
 	context: ["General", "Compaction", "Rules (TTSR)", "Experimental"],
 	memory: ["General", "Auto-Learn", "Mnemopi", "Hindsight", "Sharpshooter"],
 	files: ["Editing", "Reading", "Read Summaries", "LSP"],
-	shell: ["Bash", "Eval & Runtimes"],
+	shell: ["Bash", "Eval & Runtimes", "Sandbox"],
 	tools: [
 		"Available Tools",
 		"Todos",
@@ -3868,6 +3868,21 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 
+	// WS2 permission rules — a stricter, Reasonix-style bash gate layered in
+	// front of the legacy bash patterns. Empty by default so behavior is
+	// unchanged until rules are configured.
+	"permission.rules": {
+		type: "array",
+		default: [],
+		ui: {
+			tab: "shell",
+			group: "Bash",
+			label: "Bash Permission Rules",
+			description:
+				"Ordered bash permission rules. Each item has match and action fields. Matches use the form Bash, Bash=<literal>, Bash(<subject>), or Bash(<subject>:*). Actions: deny, ask, or allow. Empty by default (no-op).",
+		},
+	},
+
 	// Bash interceptor
 	"bashInterceptor.enabled": {
 		type: "boolean",
@@ -3880,6 +3895,24 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 	"bashInterceptor.patterns": { type: "array", default: DEFAULT_BASH_INTERCEPTOR_RULES },
+
+	// WS3 forbid_read — deny-list gate for the built-in path-reading tools
+	// (read, glob, grep, ast_grep). This is a process-internal mitigation, NOT
+	// an OS-level hard gate: it deliberately does NOT cover bash (beyond a
+	// conservative parameter subset in the interceptor), the eval kernel,
+	// browser, MCP, or extension tools. Empty by default so behavior is
+	// unchanged until paths are configured.
+	"sandbox.forbidRead": {
+		type: "array",
+		default: EMPTY_STRING_ARRAY,
+		ui: {
+			tab: "shell",
+			group: "Sandbox",
+			label: "Forbid Reading Paths",
+			description:
+				"Absolute paths that the built-in read/glob/grep/search tools must not read. ${VAR}, ${VAR:-default}, and ~ expand; only absolute paths are accepted. A directory entry blocks everything beneath it. Covers only the built-in read/glob/grep/search tools — bash, eval, browser, MCP, and extension reads are NOT in scope.",
+		},
+	},
 
 	"bash.direnv": {
 		type: "enum",

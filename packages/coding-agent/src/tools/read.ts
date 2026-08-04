@@ -32,6 +32,7 @@ import { InternalUrlRouter, resolveLocalUrlToFile, resolveLocalUrlToPath } from 
 import { type ResolvedArtifactFile, resolveArtifactFile } from "../internal-urls/artifact-protocol";
 import { parseInternalUrl } from "../internal-urls/parse";
 import type { InternalUrl } from "../internal-urls/types";
+import { checkPathForbidden } from "../permission/forbid-read";
 import readDescription from "../prompts/tools/read.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
 import {
@@ -1215,6 +1216,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		if (!rawPathIsLiteral) {
 			const archivePath = await resolveArchiveReadPath(this.session, readPath, suffixCache, signal);
 			if (archivePath) {
+				// sandbox.forbidRead — gate the archive container itself so member
+				// reads cannot bypass the deny list via `container:member` syntax.
+				const archiveForbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					archivePath.absolutePath,
+				);
+				if (archiveForbidError) {
+					throw new ToolError(archiveForbidError);
+				}
 				const archiveSubPath =
 					promotedSelector === undefined
 						? splitPathAndSel(archivePath.archiveSubPath)
@@ -1231,7 +1241,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 			const sqlitePath = await resolveSqliteReadPath(this.session, readPath, suffixCache, signal);
 			if (sqlitePath) {
-				return readSqlite(sqlitePath, signal);
+				// sandbox.forbidRead — gate the sqlite container itself (see archive branch).
+				const sqliteForbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					sqlitePath.absolutePath,
+				);
+				if (sqliteForbidError) {
+					throw new ToolError(sqliteForbidError);
+				}
+				return this.#readSqlite(sqlitePath, signal);
 			}
 
 			const pdfCandidate = literalSplit.sel === undefined ? splitPdfImageReadPath(readPath) : null;
@@ -1247,6 +1265,18 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 		let absolutePath = resolveReadPath(localReadPath, this.session.cwd);
 		let suffixResolution: { from: string; to: string } | undefined;
+
+		// sandbox.forbidRead — deny-list gate BEFORE any path I/O (stat, suffix
+		// resolution): a denied target fails closed even when the file does not
+		// exist, so the deny list cannot be probed for existence. The post-stat
+		// check below still catches suffix-resolution escapes into denied dirs.
+		const preForbidError = await checkPathForbidden(
+			this.session.settings.get("sandbox.forbidRead"),
+			absolutePath,
+		);
+		if (preForbidError) {
+			throw new ToolError(preForbidError);
+		}
 
 		let isDirectory = false;
 		let fileSize = 0;
@@ -1307,6 +1337,15 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 			} else {
 				throw error;
 			}
+		}
+
+		// sandbox.forbidRead — deny-list gate for the built-in path-reading tools.
+		const forbidError = await checkPathForbidden(
+			this.session.settings.get("sandbox.forbidRead"),
+			absolutePath,
+		);
+		if (forbidError) {
+			throw new ToolError(forbidError);
 		}
 
 		if (isDirectory) {
@@ -2233,6 +2272,19 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				},
 			},
 		});
+		// sandbox.forbidRead — local:// resolves to real on-disk paths; gate the
+		// resolved target so internal-URL reads cannot bypass the deny list.
+		// Harness-managed schemes (skill:// artifact:// memory:// agent://
+		// rule://) resolve to controlled resources and remain ungated.
+		if (scheme === "local") {
+			const localForbidError = await checkPathForbidden(
+				this.session.settings.get("sandbox.forbidRead"),
+				resource.sourcePath,
+			);
+			if (localForbidError) {
+				throw new ToolError(localForbidError);
+			}
+		}
 		const details: ReadToolDetails = { resolvedPath: resource.sourcePath, contentType: resource.contentType };
 
 		// If extraction was used, return directly (no pagination)
@@ -2290,6 +2342,13 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 			return null;
 		}
 		if (!file) return null;
+
+		// sandbox.forbidRead — same gate as the text path: local:// image reads
+		// are real on-disk reads and must not bypass the deny list.
+		const forbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), file.path);
+		if (forbidError) {
+			throw new ToolError(forbidError);
+		}
 
 		const imageMetadata = await readImageMetadata(file.path);
 		const mimeType = imageMetadata?.mimeType;

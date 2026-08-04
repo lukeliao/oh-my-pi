@@ -20,6 +20,7 @@ import { createFileRecorder, formatResultPath } from "./file-recorder";
 import { classifyGroupedLines, formatGroupedFiles, groupLineIndicesByBlank } from "./grouped-file-output";
 import { formatMatchLine } from "./match-line-format";
 import type { OutputMeta } from "./output-meta";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { resolveToolSearchScope, toPathList } from "./path-utils";
 import {
 	appendParseErrorsBulletList,
@@ -228,6 +229,19 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 				},
 			});
 			const { searchPath: resolvedSearchPath, scopePath, isDirectory, multiTargets, globFilter } = scope;
+
+			// sandbox.forbidRead — block searches rooted under a denied path.
+			const forbidTargets = [resolvedSearchPath];
+			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
+			for (const forbidTarget of forbidTargets) {
+				const forbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					forbidTarget,
+				);
+				if (forbidError) {
+					throw new ToolError(forbidError);
+				}
+			}
 
 			const DEFAULT_AST_LIMIT = 50;
 			const result = multiTargets

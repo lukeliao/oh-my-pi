@@ -16,6 +16,7 @@ import { type TruncationResult, truncateHead } from "../session/streaming-output
 import { isScoutSpawnable } from "../task/spawn-policy";
 import { Ellipsis, fileHyperlink, renderFileList, renderStatusLine, renderTreeList, truncateToWidth } from "../tui";
 import type { ToolSession } from ".";
+import { checkPathForbidden } from "../permission/forbid-read";
 import { applyListLimit } from "./list-limit";
 import { formatFullOutputReference, type OutputMeta } from "./output-meta";
 import {
@@ -293,6 +294,13 @@ export class GlobTool implements AgentTool<typeof findSchema, GlobToolDetails> {
 			for (const target of targets) {
 				if (target.searchPath === "/") {
 					throw new ToolError("Searching from root directory '/' is not allowed");
+				}
+				const forbidError = await checkPathForbidden(
+					this.session.settings.get("sandbox.forbidRead"),
+					target.searchPath,
+				);
+				if (forbidError) {
+					throw new ToolError(forbidError);
 				}
 			}
 
