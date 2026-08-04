@@ -148,12 +148,14 @@ bun run check:rs
    ```
    Skip `agx_orin` (ARM64 — needs cross-compile with `CROSS_TARGET=linux-arm64`).
 
-5. Verify remotes:
+5. Verify all machines — **版本一致性校验（本机 + 远程必须完全一致，含 `-custom.<timestamp>`）**:
    ```bash
+   omp --version   # 本机
    for host in liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop; do
      ssh $host "~/.local/bin/omp --version"
    done
    ```
+   四条输出必须相同。任何一台不一致 = 该机漏装或装错 bundle（历史上 desktop 曾被 Machines 表误标 localhost 而漏装），先补装再进入 Phase 5。
 
 ### Phase 5: Commit & Push
 
@@ -172,11 +174,12 @@ git push --force-with-lease liao main
 
 ## Machines
 
-| Machine | Arch | Role |
-|---------|------|------|
-| desktop (localhost) | x64 | Primary dev |
-| cnp6s | x64 | CI/remote build |
-| ser9 | x64 | CI/remote build |
-| agx_orin | ARM64 | Jetson — skip, needs cross-compile |
+| Machine | Arch | Role | 访问方式 |
+|---------|------|------|---------|
+| liao-NUC12DCMi9 (本机) | x64 | 主开发机（构建源），用户 liao | 本地直接操作 |
+| desktop | x64 | 廖工桌面工作站 DESKTOP-07JFCG5，用户 act_ai_server | `ssh desktop`（Tailscale: desktop-07jfcg5.tailad91fc.ts.net）——**是独立远程机，不是本机**，必须单独部署 |
+| cnp6s | x64 | CI/remote build | `ssh cnp6s` |
+| ser9 | x64 | CI/remote build | `ssh ser9` |
+| agx_orin | ARM64 | Jetson — skip, needs cross-compile | `ssh agx_orin` |
 
-All accessible via `ssh <host>` from `~/.ssh/config`.
+**部署清单 = 本机(本地 install) + cnp6s + ser9 + desktop（三台都走 ssh）**。desktop 与 cnp6s/ser9 并列在同一个 ssh 循环里，唯一例外是本机不走 ssh。
