@@ -137,6 +137,8 @@ export interface LaunchParams {
 	keys?: string[];
 	signal?: "SIGINT" | "SIGTERM" | "SIGHUP" | "SIGQUIT" | "SIGKILL";
 	timeout?: number;
+	/** Messaging-style millisecond timeout; accepted as a fallback for process ops (converted to seconds). */
+	timeoutMs?: number;
 }
 
 const KEY_INPUT: Record<string, string> = {
@@ -179,6 +181,19 @@ function requiredName(params: LaunchParams): string {
 function timeoutMs(value: number | undefined, fallbackSeconds: number): number {
 	const seconds = Math.max(0.05, Math.min(3_600, value ?? fallbackSeconds));
 	return Math.round(seconds * 1_000);
+}
+
+/**
+ * Process-op timeout resolution: the explicit `timeout` (seconds) wins; a
+ * non-zero `timeoutMs` (milliseconds — the messaging/jobs wait field) is
+ * accepted as a fallback and converted, so a stray `timeoutMs` on a process
+ * wait is honored instead of silently falling back to the 30s default. Zero
+ * is treated as absent (0 means "indefinite" only for messaging waits).
+ */
+export function resolveProcessTimeout(params: Pick<LaunchParams, "timeout" | "timeoutMs">): number | undefined {
+	if (params.timeout !== undefined) return params.timeout;
+	if (params.timeoutMs !== undefined && params.timeoutMs > 0) return params.timeoutMs / 1000;
+	return undefined;
 }
 
 function commandSpec(params: LaunchParams, session: ToolSession): DaemonSpec {
@@ -239,7 +254,7 @@ function operationFor(params: LaunchParams, session: ToolSession): DaemonOperati
 				follow: params.follow ?? false,
 				cursor: params.cursor,
 				renderTerminalRows: true,
-				timeoutMs: timeoutMs(params.timeout, 30),
+				timeoutMs: timeoutMs(resolveProcessTimeout(params), 30),
 			};
 		case "wait":
 			return {
@@ -247,7 +262,7 @@ function operationFor(params: LaunchParams, session: ToolSession): DaemonOperati
 				name: requiredName(params),
 				for: params.for ?? "exit",
 				pattern: params.pattern,
-				timeoutMs: timeoutMs(params.timeout, 30),
+				timeoutMs: timeoutMs(resolveProcessTimeout(params), 30),
 			};
 		case "send":
 			return {
@@ -257,12 +272,56 @@ function operationFor(params: LaunchParams, session: ToolSession): DaemonOperati
 				signal: params.signal,
 			};
 		case "stop":
-			return { op: "stop", name: requiredName(params), timeoutMs: timeoutMs(params.timeout, 5) };
+			return { op: "stop", name: requiredName(params), timeoutMs: timeoutMs(resolveProcessTimeout(params), 5) };
 		case "restart":
 			return { op: "restart", name: requiredName(params) };
 		case "describe":
 			return { op: "describe", name: requiredName(params) };
 	}
+}
+
+/** Tail size appended to a failed start's result so the model sees why it died. */
+const START_FAILURE_TAIL_LINES = 25;
+/** Marker separating the failure tail from the rest of the start result content. */
+const START_FAILURE_TAIL_MARKER = `[last ${START_FAILURE_TAIL_LINES} lines of output]`;
+
+/** Best-effort tail of a failed start's output (exited before readiness or readiness timeout). */
+async function fetchFailureOutputTail(
+	client: DaemonBrokerClient,
+	name: string,
+	signal?: AbortSignal,
+): Promise<string | undefined> {
+	try {
+		const logs = await client.request(
+			{
+				op: "logs",
+				name,
+				lines: START_FAILURE_TAIL_LINES,
+				head: false,
+				follow: false,
+				renderTerminalRows: false,
+				timeoutMs: 5_000,
+			},
+			signal,
+		);
+		if (logs.op !== "logs" || !logs.text) return undefined;
+		const tail = sanitizeText(logs.text).trimEnd();
+		return tail ? `${START_FAILURE_TAIL_MARKER}\n${tail}` : undefined;
+	} catch {
+		// The tail is a convenience; a failed tail fetch must not break the result.
+		return undefined;
+	}
+}
+
+/** Lines of the appended failure-output tail, if the content carries one. */
+function failureTailFromContent(text: string): string[] {
+	const idx = text.indexOf(START_FAILURE_TAIL_MARKER);
+	if (idx < 0) return [];
+	return text
+		.slice(idx + START_FAILURE_TAIL_MARKER.length)
+		.trimStart()
+		.split("\n")
+		.filter(line => line.length > 0);
 }
 
 function daemonLabel(daemon: DaemonSnapshot): string {
@@ -408,6 +467,11 @@ export async function executeLaunch(
 			: undefined;
 	try {
 		const result = await client.request(operation, signal);
+		let text = toolContent(result, params);
+		if (result.op === "start" && (result.daemon.state === "failed" || result.readyTimedOut)) {
+			const tail = await fetchFailureOutputTail(client, result.daemon.name, signal);
+			if (tail) text += `\n${tail}`;
+		}
 		const sessionOwner = session.getSessionId?.();
 		let resumedDaemonFound = false;
 		const daemons =
@@ -420,7 +484,7 @@ export async function executeLaunch(
 		if (params.op === "list" && resumedOwner && !resumedDaemonFound) completionLease?.reject(true);
 		else completionLease?.retain();
 		return {
-			content: [{ type: "text", text: replaceTabs(toolContent(result, params)) }],
+			content: [{ type: "text", text: replaceTabs(text) }],
 			details: await toolDetails(result, params),
 		};
 	} catch (error) {
@@ -568,6 +632,12 @@ export function launchRenderResult(
 					);
 				} else if (params.ready && daemon && daemon.readyAt === undefined && TERMINAL_STATES[daemon.state]) {
 					body.push(theme.fg("warning", "Process exited before readiness was observed."));
+				}
+				if (daemon?.state === "failed" || details?.timedOut) {
+					const tail = failureTailFromContent(text);
+					if (tail.length > 0) {
+						for (const line of tail) body.push(theme.fg("toolOutput", replaceTabs(line)));
+					}
 				}
 				break;
 			}

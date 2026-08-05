@@ -1887,6 +1887,19 @@ function healInbandArgSpill(value: unknown): { value: unknown; changed: boolean 
 	return { value: out, changed: true };
 }
 
+/**
+ * Repairs hub process-launch calls that dropped the required `op` field while
+ * carrying the launch-only `application` field (a recurring failure mode for
+ * `op:"start"`). `application` is accepted by no other hub op, so the intent
+ * is unambiguous — adopt `op:"start"` instead of failing the call. Gated on
+ * validation failure, so a hub call that legitimately lacks both is untouched.
+ */
+function healMissingHubStartOp(tool: Tool, value: unknown): { value: unknown; changed: boolean } {
+	if (tool.name !== "hub" || !isPlainRecord(value)) return { value, changed: false };
+	if ("op" in value || !("application" in value)) return { value, changed: false };
+	return { value: { ...value, op: "start" }, changed: true };
+}
+
 const MAX_COERCION_PASSES = 5;
 
 /**
@@ -2033,6 +2046,22 @@ export function validateToolArguments(tool: Tool, toolCall: ToolCall): ToolCall[
 	const spillHeal = healInbandArgSpill(normalizedArgs);
 	if (spillHeal.changed) {
 		normalizedArgs = spillHeal.value;
+		changed = true;
+		result = validateContext(ctx, normalizedArgs);
+		if (!result.success) {
+			const healedOutcome = runCoercionPasses(ctx, normalizedArgs, result);
+			normalizedArgs = healedOutcome.args;
+			result = healedOutcome.result;
+		}
+		if (result.success) return result.value as ToolCall["arguments"];
+	}
+
+	// Last resort: hub `start` calls repeatedly drop the required `op` field.
+	// With the launch-only `application` field present the intent is
+	// unambiguous, so adopt `op:"start"` and re-validate instead of failing.
+	const hubStartHeal = healMissingHubStartOp(tool, normalizedArgs);
+	if (hubStartHeal.changed) {
+		normalizedArgs = hubStartHeal.value;
 		changed = true;
 		result = validateContext(ctx, normalizedArgs);
 		if (!result.success) {
