@@ -48,6 +48,46 @@ const SESSIONS_ROOT = path.join(os.homedir(), ".omp", "agent", "sessions");
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4-6";
 const CACHE_PATH = path.join(os.homedir(), ".omp", "stats-audit-cache.json");
 
+/**
+ * Tool registry for zero-call analysis (registered tools never observed in
+ * the window). Source of truth: packages/coding-agent/src/tools/ (builtin
+ * `readonly name` / CustomTool `name`) plus our custom layer (.omp/tools/
+ * semble-rs and mounted mcp__codebase_memory_mcp_* devices). Refresh on
+ * upstream merge — tool renames (search→grep in v16.2) will otherwise
+ * silently skew the diff. Unknown observed tools are reported separately.
+ */
+const TOOL_REGISTRY = new Set<string>([
+	// builtins
+	"ask", "ast_edit", "ast_grep", "bash", "browser", "checkpoint", "computer", "debug",
+	"edit", "eval", "generate_image", "github", "glob", "grep", "hub", "inspect_image",
+	"learn", "lsp", "manage_skill", "memory_edit", "recall", "reflect", "retain", "read",
+	"rewind", "security_scan", "task", "todo", "tts", "vibe_kill", "vibe_list", "vibe_send",
+	"vibe_spawn", "vibe_wait", "web_search", "write", "yield",
+	// custom semble tools
+	"semble_digest", "semble_deps", "semble_encode", "semble_find_pattern",
+	"semble_find_related", "semble_impact", "semble_plan", "semble_search", "semble_tree",
+	// advisor + issue reporting + OKF MCP tools (observed in corpus)
+	"advise", "report_tool_issue", "okf_add", "okf_query", "okf_status", "okf_validate",
+	// codebase-memory-mcp devices (actual observed prefix: mcp__codebase_memory_)
+	"mcp__codebase_memory_delete_project", "mcp__codebase_memory_detect_changes",
+	"mcp__codebase_memory_get_architecture", "mcp__codebase_memory_get_code_snippet",
+	"mcp__codebase_memory_get_graph_schema", "mcp__codebase_memory_index_repository",
+	"mcp__codebase_memory_index_status", "mcp__codebase_memory_ingest_traces",
+	"mcp__codebase_memory_list_projects", "mcp__codebase_memory_manage_adr",
+	"mcp__codebase_memory_query_graph", "mcp__codebase_memory_search_code",
+	"mcp__codebase_memory_search_graph", "mcp__codebase_memory_trace_path",
+	// other MCP servers mounted in corpus
+	"mcp__claw_bash", "mcp__claw_ls", "mcp__claw_machines", "mcp__minimax_web_search", "claw_bash",
+	// historical dual-mcp variant (mcp__codebase_memory_mcp_*) also observed in corpus
+	"mcp__codebase_memory_mcp_delete_project", "mcp__codebase_memory_mcp_detect_changes",
+	"mcp__codebase_memory_mcp_get_architecture", "mcp__codebase_memory_mcp_get_code_snippet",
+	"mcp__codebase_memory_mcp_get_graph_schema", "mcp__codebase_memory_mcp_index_repository",
+	"mcp__codebase_memory_mcp_index_status", "mcp__codebase_memory_mcp_ingest_traces",
+	"mcp__codebase_memory_mcp_list_projects", "mcp__codebase_memory_mcp_manage_adr",
+	"mcp__codebase_memory_mcp_query_graph", "mcp__codebase_memory_mcp_search_code",
+	"mcp__codebase_memory_mcp_search_graph", "mcp__codebase_memory_mcp_trace_path",
+]);
+
 // --------------------------------------------------------------------------
 // CLI
 
@@ -1196,6 +1236,18 @@ function printScanReport(res: AuditResult): void {
 			`  ${pad(clip(name, 15), 16)} ${padl(String(agg.calls), 7)} ${padl(fmtTok(agg.argToks), 9)} ${padl(fmtTok(agg.resultToks), 9)} ` +
 				`${padl(fmtTok(agg.calls ? agg.resultToks / agg.calls : 0), 9)} ${padl(String(agg.errors), 6)} ${padl(fmtTok(agg.residency), 11)}`,
 		);
+	}
+
+	// Zero-call tier: registered tools never observed in this window.
+	const observed = new Set(tools.keys());
+	const neverCalled = [...TOOL_REGISTRY].filter((t) => !observed.has(t)).sort();
+	console.log(
+		`\ntools never called in window (registry diff, ${neverCalled.length}/${TOOL_REGISTRY.size} registered never observed):`,
+	);
+	console.log(`  ${neverCalled.join(", ") || "(none)"}`);
+	const unknownObserved = [...observed].filter((t) => !TOOL_REGISTRY.has(t)).sort();
+	if (unknownObserved.length) {
+		console.log(`  [observed but unregistered: ${unknownObserved.join(", ")}]`);
 	}
 
 	// Biggest single results anywhere
