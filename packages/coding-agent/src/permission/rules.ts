@@ -211,7 +211,7 @@ export function isDynamicBashCommand(command: string): boolean {
 	const trimmed = command.trim();
 	if (trimmed.length === 0) return false;
 	const segments = extractFlatShellCommandSegments(command);
-	const targets = segments.length > 0 ? segments : [trimmed];
+	const targets = segments.length > 0 ? segments.map(segment => segment.text) : [trimmed];
 	return targets.some(segment => {
 		const words = segment
 			.trim()
@@ -271,11 +271,11 @@ export function evaluateBashRules(rules: PermissionRule[], command: string): Bas
 			// A literal allow vouches for the whole command; bare/exact/prefix
 			// must cover every segment so an unsafe one cannot ride a narrow rule.
 			if (rule.parsed.kind === "literal") return ruleMatchesText(rule.parsed, command);
-			return segments.every(segment => ruleMatchesText(rule.parsed, segment));
+			return segments.every(segment => ruleMatchesText(rule.parsed, segment.text));
 		}
 		// deny/ask fire on the whole command or any single segment.
 		if (ruleMatchesText(rule.parsed, command)) return true;
-		return segments.some(segment => ruleMatchesText(rule.parsed, segment));
+		return segments.some(segment => ruleMatchesText(rule.parsed, segment.text));
 	};
 
 	for (const rule of parsed) {
