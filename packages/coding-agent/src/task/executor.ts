@@ -104,6 +104,7 @@ import { generateTaskLabel } from "./label";
 import { resolveAgentPrewalkDefault } from "./prewalk";
 import { isReadOnlyAgent } from "./read-only-policy";
 import { formatTaskResultSummary } from "./result-summary";
+import { guardSubagentHostDecisionText } from "./subagent-guard";
 import { subprocessToolRegistry } from "./subprocess-tool-registry";
 import type { WorkPoolYieldItem } from "./workpool-yield";
 import {
@@ -829,7 +830,14 @@ export function finalizeSubprocessOutput(args: FinalizeSubprocessOutputArgs): Fi
 		}
 	}
 
-	return { rawOutput, exitCode, stderr, abortedViaYield, hasYield, structuredOutput };
+	return {
+		rawOutput: guardSubagentHostDecisionText(rawOutput),
+		exitCode,
+		stderr,
+		abortedViaYield,
+		hasYield,
+		structuredOutput,
+	};
 }
 
 function formatToolArgsPreview(value: string, key: string): { value: string; key: string } {
