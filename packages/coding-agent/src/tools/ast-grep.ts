@@ -10,6 +10,7 @@ import { getEditStore } from "../edit/store";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import { formatHashlineHeader } from "./hashline-format";
 import type { Theme } from "../modes/theme/theme";
+import { checkPathForbidden } from "../permission/forbid-read";
 import astGrepDescription from "../prompts/tools/ast-grep.md" with { type: "text" };
 import { sessionDelegationBias } from "../task/prompt-policy";
 import { isScoutSpawnable } from "../task/spawn-policy";
@@ -21,7 +22,6 @@ import { createFileRecorder, formatResultPath } from "./file-recorder";
 import { classifyGroupedLines, formatGroupedFiles, groupLineIndicesByBlank } from "./grouped-file-output";
 import { formatMatchLine } from "./match-line-format";
 import type { OutputMeta } from "./output-meta";
-import { checkPathForbidden } from "../permission/forbid-read";
 import { resolveToolSearchScope, toPathList } from "./path-utils";
 import { isRawSelector } from "./read-selector";
 import {
@@ -249,10 +249,7 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 			const forbidTargets = [resolvedSearchPath];
 			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
 			for (const forbidTarget of forbidTargets) {
-				const forbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
-					forbidTarget,
-				);
+				const forbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), forbidTarget);
 				if (forbidError) {
 					throw new ToolError(forbidError);
 				}

@@ -24,6 +24,7 @@ import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import { InternalUrlRouter } from "../internal-urls";
 import { truncateToVisualLines } from "../modes/components/visual-truncate";
 import { highlightCode, type Theme } from "../modes/theme/theme";
+import { evaluateBashRules, getPermissionRules } from "../permission/rules";
 import bashDescription from "../prompts/tools/bash.md" with { type: "text" };
 import type {
 	ClientBridgeTerminalExitStatus,
@@ -42,7 +43,6 @@ import { type BashInteractiveResult, runInteractiveBashPty } from "./bash-intera
 import { checkBashInterception, checkForbidReadBash } from "./bash-interceptor";
 import { rewriteGitWorktreeAdd } from "./bash-worktree-rewrite";
 import { canUseInteractiveBashPty } from "./bash-pty-selection";
-import { evaluateBashRules, getPermissionRules } from "../permission/rules";
 import { expandInternalUrls, type InternalUrlExpansionOptions } from "./bash-skill-urls";
 import { resolveEvalBackends } from "./eval-backends";
 import { invalidateGithubCacheForBashCommand } from "./gh-cache-invalidation";
@@ -1082,10 +1082,7 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 		// command (`cat`/`head`/`tail`/`less`/`more`) whose literal path argument
 		// is denied. No-op unless the deny list is configured. This is a narrow
 		// mitigation, not a hard gate (see checkForbidReadBash).
-		const forbidReadBash = await checkForbidReadBash(
-			rawCommand,
-			this.session.settings.get("sandbox.forbidRead"),
-		);
+		const forbidReadBash = await checkForbidReadBash(rawCommand, this.session.settings.get("sandbox.forbidRead"));
 		if (forbidReadBash.block) {
 			throw new ToolError(forbidReadBash.message ?? "Command blocked");
 		}

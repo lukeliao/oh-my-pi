@@ -3,8 +3,8 @@ import {
 	evaluateBashRules,
 	getPermissionRules,
 	isDynamicBashCommand,
-	parseBashRule,
 	type PermissionRule,
+	parseBashRule,
 } from "./rules";
 
 const rule = (match: string, action: PermissionRule["action"]): PermissionRule => ({ match, action });

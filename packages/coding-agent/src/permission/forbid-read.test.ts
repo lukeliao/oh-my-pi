@@ -4,18 +4,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { checkForbidReadBash } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { AstGrepTool } from "@oh-my-pi/pi-coding-agent/tools/ast-grep";
+import { checkForbidReadBash } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { GlobTool } from "@oh-my-pi/pi-coding-agent/tools/glob";
 import { GrepTool } from "@oh-my-pi/pi-coding-agent/tools/grep";
 import { ReadTool } from "@oh-my-pi/pi-coding-agent/tools/read";
-import {
-	checkPathForbidden,
-	forbidReadError,
-	isPathForbidden,
-	parseForbidList,
-	resolveDenyList,
-} from "./forbid-read";
+import { checkPathForbidden, forbidReadError, isPathForbidden, parseForbidList, resolveDenyList } from "./forbid-read";
 
 const HOME = "/home/forbid-tester";
 
@@ -25,15 +19,15 @@ describe("parseForbidList", () => {
 		return { warnings: list, fn: w => list.push(w) };
 	};
 
-	it("expands ${VAR} references", () => {
+	it(`expands \${VAR} references`, () => {
 		const { fn } = collect();
-		const out = parseForbidList(["${MYHOME}/.ssh"], { home: HOME, env: { MYHOME: "/home/real" }, onWarning: fn });
+		const out = parseForbidList([`\${MYHOME}/.ssh`], { home: HOME, env: { MYHOME: "/home/real" }, onWarning: fn });
 		expect(out).toEqual(["/home/real/.ssh"]);
 	});
 
-	it("expands ${VAR:-default} with a fallback when the var is unset", () => {
+	it(`expands \${VAR:-default} with a fallback when the var is unset`, () => {
 		const { fn } = collect();
-		const out = parseForbidList(["${MISSING:-/tmp/def}/secrets"], {
+		const out = parseForbidList([`\${MISSING:-/tmp/def}/secrets`], {
 			home: HOME,
 			env: {},
 			onWarning: fn,
@@ -43,7 +37,7 @@ describe("parseForbidList", () => {
 
 	it("skips an unset var without a default and warns", () => {
 		const { warnings, fn } = collect();
-		const out = parseForbidList(["${MISSING}/x"], { home: HOME, env: {}, onWarning: fn });
+		const out = parseForbidList([`\${MISSING}/x`], { home: HOME, env: {}, onWarning: fn });
 		expect(out).toEqual([]);
 		expect(warnings.length).toBe(1);
 	});
@@ -101,7 +95,7 @@ describe("checkPathForbidden no-op default", () => {
 	});
 
 	it("returns an error string when the path is denied", async () => {
-		const err = await checkPathForbidden(["${HOME}/.ssh"], "/home/forbid-tester/.ssh/id_rsa", {
+		const err = await checkPathForbidden([`\${HOME}/.ssh`], "/home/forbid-tester/.ssh/id_rsa", {
 			home: HOME,
 			env: { HOME },
 		});
@@ -190,8 +184,9 @@ describe("glob seam intercepts a denied search", () => {
 		const allowed = path.join(root, "allowed");
 		fs.mkdirSync(allowed);
 		fs.writeFileSync(path.join(allowed, "b.ts"), "export const b = 2;\n");
-		await expect(tool.execute("id", { path: `${allowed}/**/*` }, undefined, undefined, {} as AgentToolContext)).resolves
-			.toBeDefined();
+		await expect(
+			tool.execute("id", { path: `${allowed}/**/*` }, undefined, undefined, {} as AgentToolContext),
+		).resolves.toBeDefined();
 	});
 });
 
@@ -320,7 +315,13 @@ describe("read seam intercepts a denied file", () => {
 		// deny list cannot be probed for existence.
 		const tool = new ReadTool(createReadSession());
 		await expect(
-			tool.execute("id", { path: path.join(denyDir, "does-not-exist.txt") }, undefined, undefined, {} as AgentToolContext),
+			tool.execute(
+				"id",
+				{ path: path.join(denyDir, "does-not-exist.txt") },
+				undefined,
+				undefined,
+				{} as AgentToolContext,
+			),
 		).rejects.toThrow("Blocked:");
 	});
 
@@ -352,7 +353,8 @@ describe("read seam intercepts a denied file", () => {
 		const tool = new ReadTool(createReadSession());
 		const allowedFile = path.join(root, "ok.txt");
 		fs.writeFileSync(allowedFile, "fine\n");
-		await expect(tool.execute("id", { path: allowedFile }, undefined, undefined, {} as AgentToolContext)).resolves
-			.toBeDefined();
+		await expect(
+			tool.execute("id", { path: allowedFile }, undefined, undefined, {} as AgentToolContext),
+		).resolves.toBeDefined();
 	});
 });
