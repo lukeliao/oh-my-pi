@@ -58,31 +58,16 @@ These files differ from upstream and may conflict on rebase:
 
 ## Procedure
 
-### Phase 1: Fetch & Assess
+### Phase 1: Fetch & Assess（一条命令）
 
 ```bash
 cd ~/workspace/act_ai_product/agents_harness/oh-my-pi
-git fetch origin
+./scripts/omp-upstream-assess.sh
 ```
 
-Check new version:
-```bash
-git log --oneline origin/main ^HEAD | wc -l          # commit count
-git tag --sort=-creatordate | head -3                 # latest tags
-```
-
-Check if our modified files were touched upstream:
-```bash
-# Replace <old_base> with the merge-base before fetch
-git diff --stat <old_base>..origin/main -- \
-  AGENTS.md \
-  packages/coding-agent/src/system-prompt.ts \
-  packages/coding-agent/src/capability/context-file.ts \
-  packages/coding-agent/src/discovery/agents-md.ts \
-  packages/coding-agent/src/prompts/system/ \
-  packages/coding-agent/test/system-prompt-dedup.test.ts \
-  scripts/build-semble-omp-package.ts
-```
+输出：待合 commit 数、最新上游 tag、冲突风险文件清单（我们定制且上游也改动的文件）。
+风险清单为空或只有 `AGENTS.md`（冲突规则固定保留 ours）时，rebase 可放心进行。
+有其它风险文件时，先 `git diff <merge_base>..origin/main -- <file>` 逐个评估再进入 Phase 2。
 
 ### Phase 2: Rebase
 
@@ -129,33 +114,13 @@ bun run check:rs
    bun scripts/build-semble-omp-package.ts --model-path "$SEMBLE_MODEL_PATH"
    ```
 
-2. Install locally:
+2. Deploy to ALL x64 machines + 版本一致性校验（一条命令）:
    ```bash
-   <bundle_dir>/install.sh --force
+   ./scripts/omp-deploy.sh ~/.local/share/omp-bundles/omp-<version>-linux-x64
    ```
-
-3. Verify local:
-   ```bash
-   omp --version  # should show current version with -custom. timestamp
-   ```
-
-4. Deploy to x64 machines (`cnp6s`, `ser9`, `desktop`):
-   ```bash
-   for host in liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop; do
-     rsync -az --info=progress2 <bundle_dir>/ $host:~/.local/share/omp-bundles/$(basename <bundle_dir>)/
-     ssh $host "cd ~/.local/share/omp-bundles/$(basename <bundle_dir>)/ && ./install.sh --force"
-   done
-   ```
+   脚本自动完成：本机 install → rsync + install 到 cnp6s / ser9 / desktop → 四机版本一致性校验
+   （任一不一致立即失败退出，须先补装再继续）。
    Skip `agx_orin` (ARM64 — needs cross-compile with `CROSS_TARGET=linux-arm64`).
-
-5. Verify all machines — **版本一致性校验（本机 + 远程必须完全一致，含 `-custom.<timestamp>`）**:
-   ```bash
-   omp --version   # 本机
-   for host in liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop; do
-     ssh $host "~/.local/bin/omp --version"
-   done
-   ```
-   四条输出必须相同。任何一台不一致 = 该机漏装或装错 bundle（历史上 desktop 曾被 Machines 表误标 localhost 而漏装），先补装再进入 Phase 5。
 
 ### Phase 5: Commit & Push
 
