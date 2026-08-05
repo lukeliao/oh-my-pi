@@ -61,7 +61,7 @@ export function parseForbidList(entries: string[] | undefined, opts: ForbidReadO
 		// fragment like `/x` from `${MISSING}/x` would look absolute), so skip
 		// the whole entry.
 		let entryFailed = false;
-		value = value.replace(VAR_REF_PATTERN, (match, name: string, fallback: string | undefined) => {
+		value = value.replace(VAR_REF_PATTERN, (_match, name: string, fallback: string | undefined) => {
 			const v = env[name];
 			if (v !== undefined && v !== "") return v;
 			if (fallback !== undefined) return fallback;
