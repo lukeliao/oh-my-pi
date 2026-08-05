@@ -3528,8 +3528,7 @@ export const SETTINGS_SCHEMA = {
 			tab: "shell",
 			group: "Sandbox",
 			label: "Forbid Reading Paths",
-			description:
-				"Absolute paths that the built-in read/glob/grep/search tools must not read. ${VAR}, ${VAR:-default}, and ~ expand; only absolute paths are accepted. A directory entry blocks everything beneath it. Covers only the built-in read/glob/grep/search tools — bash, eval, browser, MCP, and extension reads are NOT in scope.",
+			description: `Absolute paths that the built-in read/glob/grep/search tools must not read. \${VAR}, \${VAR:-default}, and ~ expand; only absolute paths are accepted. A directory entry blocks everything beneath it. Covers only the built-in read/glob/grep/search tools — bash, eval, browser, MCP, and extension reads are NOT in scope.`,
 		},
 	},
 
