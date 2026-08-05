@@ -1270,10 +1270,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// resolution): a denied target fails closed even when the file does not
 		// exist, so the deny list cannot be probed for existence. The post-stat
 		// check below still catches suffix-resolution escapes into denied dirs.
-		const preForbidError = await checkPathForbidden(
-			this.session.settings.get("sandbox.forbidRead"),
-			absolutePath,
-		);
+		const preForbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), absolutePath);
 		if (preForbidError) {
 			throw new ToolError(preForbidError);
 		}
@@ -1340,10 +1337,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		}
 
 		// sandbox.forbidRead — deny-list gate for the built-in path-reading tools.
-		const forbidError = await checkPathForbidden(
-			this.session.settings.get("sandbox.forbidRead"),
-			absolutePath,
-		);
+		const forbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), absolutePath);
 		if (forbidError) {
 			throw new ToolError(forbidError);
 		}
@@ -2276,7 +2270,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// resolved target so internal-URL reads cannot bypass the deny list.
 		// Harness-managed schemes (skill:// artifact:// memory:// agent://
 		// rule://) resolve to controlled resources and remain ungated.
-		if (scheme === "local") {
+		if (scheme === "local" && resource.sourcePath) {
 			const localForbidError = await checkPathForbidden(
 				this.session.settings.get("sandbox.forbidRead"),
 				resource.sourcePath,

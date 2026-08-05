@@ -309,14 +309,10 @@ describe("build-discipline interception (project rules)", () => {
 		expect(checkBashInterception(command, tools, buildRules).block).toBe(true);
 	});
 
-	it.each([
-		"docker ps",
-		"docker logs -f app",
-		"docker system df",
-		"cmake --version",
-		"ls -la",
-		"cargo fmt --check",
-	])("does not block read-only / non-build commands %s", command => {
-		expect(checkBashInterception(command, tools, buildRules).block).toBe(false);
-	});
+	it.each(["docker ps", "docker logs -f app", "docker system df", "cmake --version", "ls -la", "cargo fmt --check"])(
+		"does not block read-only / non-build commands %s",
+		command => {
+			expect(checkBashInterception(command, tools, buildRules).block).toBe(false);
+		},
+	);
 });

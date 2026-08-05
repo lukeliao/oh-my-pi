@@ -10,6 +10,7 @@ import { prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import { recordFileSnapshot, recordSeenLinesFromBody } from "../edit/file-snapshot-store";
 import type { RenderResultOptions } from "../extensibility/custom-tools/types";
 import type { Theme } from "../modes/theme/theme";
+import { checkPathForbidden } from "../permission/forbid-read";
 import astGrepDescription from "../prompts/tools/ast-grep.md" with { type: "text" };
 import { isScoutSpawnable } from "../task/spawn-policy";
 import { Ellipsis, fileHyperlink, renderStatusLine, renderTreeList, truncateToWidth } from "../tui";
@@ -20,7 +21,6 @@ import { createFileRecorder, formatResultPath } from "./file-recorder";
 import { classifyGroupedLines, formatGroupedFiles, groupLineIndicesByBlank } from "./grouped-file-output";
 import { formatMatchLine } from "./match-line-format";
 import type { OutputMeta } from "./output-meta";
-import { checkPathForbidden } from "../permission/forbid-read";
 import { resolveToolSearchScope, toPathList } from "./path-utils";
 import {
 	appendParseErrorsBulletList,
@@ -234,10 +234,7 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 			const forbidTargets = [resolvedSearchPath];
 			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
 			for (const forbidTarget of forbidTargets) {
-				const forbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
-					forbidTarget,
-				);
+				const forbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), forbidTarget);
 				if (forbidError) {
 					throw new ToolError(forbidError);
 				}
