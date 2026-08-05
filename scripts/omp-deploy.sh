@@ -32,7 +32,9 @@ for host in local "${REMOTES[@]}"; do
 	if [ "$host" = "local" ]; then
 		ver=$("$HOME/.local/bin/omp" --version)
 	else
-		ver=$(ssh -o ConnectTimeout=10 "$host" "$HOME/.local/bin/omp --version")
+		# single-quoted: $HOME must expand on the REMOTE host (desktop runs as
+		# act_ai_server with a different home than the local user)
+		ver=$(ssh -o ConnectTimeout=10 "$host" '$HOME/.local/bin/omp --version')
 	fi
 	echo "  $host: $ver"
 	if [ -z "$expected" ]; then
