@@ -11,6 +11,13 @@
  *
  * Pattern set mirrors DeepSeek-Reasonix internal/tool/subagentguard.go
  * (GuardSubagentHostDecisionText) plus stricter claim regexes. Pure, no I/O.
+ *
+ * Scope: applied at finalizeSubprocessOutput, i.e. subagent (task) results
+ * only. hub peer messages are deliberately NOT guarded: peers are equal
+ * agents with a different trust model (bidirectional collaboration, not
+ * delegated execution), and "please confirm" is routine there — annotating
+ * it would add noise. Host-state claims from a child result remain the
+ * risk this guard exists to close.
  */
 
 const APPROVAL_CLAIM_PHRASES: string[] = [
