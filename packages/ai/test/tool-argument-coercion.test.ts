@@ -2046,3 +2046,102 @@ describe("In-band arg spill healing", () => {
 		expect(result).toEqual({ content });
 	});
 });
+
+describe("hub start op heal", () => {
+	const hubLike = type({
+		op: type("'start' | 'wait' | 'logs'").describe("hub operation"),
+		"application?": type("string > 0").describe("start: executable or application path"),
+		"args?": type("string[]").describe("start: argv passed directly to the application"),
+		"name?": type("string <= 48").describe("process ops: stable project-scoped launch name"),
+		"cwd?": type("string").describe("start: working directory; defaults to the session directory"),
+	});
+
+	const hubTool: Tool = {
+		name: "hub",
+		description: "",
+		parameters: hubLike,
+	};
+
+	it("adopts op=start when application is present and op is missing", () => {
+		const result = validateToolArguments(hubTool, {
+			type: "toolCall",
+			id: "call-hub-start",
+			name: "hub",
+			arguments: {
+				application: "python3",
+				args: ["-W", "ignore", "scripts/collect.py"],
+				name: "collect_fixed",
+				cwd: "/tmp",
+			},
+		}) as Record<string, unknown>;
+		expect(result.op).toBe("start");
+		expect(result.application).toBe("python3");
+		expect(result.name).toBe("collect_fixed");
+	});
+
+	it("still rejects op-less hub calls that carry no application", () => {
+		expect(() =>
+			validateToolArguments(hubTool, {
+				type: "toolCall",
+				id: "call-hub-wait",
+				name: "hub",
+				arguments: { name: "web", for: "exit" },
+			}),
+		).toThrow('Validation failed for tool "hub"');
+	});
+
+	it("leaves op-less calls with application untouched for non-hub tools", () => {
+		const other: Tool = {
+			name: "other",
+			description: "",
+			parameters: hubLike,
+		};
+		expect(() =>
+			validateToolArguments(other, {
+				type: "toolCall",
+				id: "call-other",
+				name: "other",
+				arguments: { application: "python3" },
+			}),
+		).toThrow('Validation failed for tool "other"');
+	});
+
+	it("enforces the process-op upper bounds instead of silently clamping", () => {
+		const bounded: Tool = {
+			name: "hub-bounds",
+			description: "",
+			parameters: type({
+				op: type("'logs' | 'wait'").describe("hub operation"),
+				"name?": type("string <= 48"),
+				"lines?": type("number > 0 & number <= 1000").describe("logs: output lines; default 100, max 1000"),
+				"timeout?": type("number > 0 & number <= 3600").describe("logs/stop/wait with name: max seconds"),
+			}),
+		};
+
+		expect(() =>
+			validateToolArguments(bounded, {
+				type: "toolCall",
+				id: "call-lines",
+				name: "hub-bounds",
+				arguments: { op: "logs", name: "web", lines: 2000 },
+			}),
+		).toThrow(/lines.*\(was 2000\)/);
+		expect(() =>
+			validateToolArguments(bounded, {
+				type: "toolCall",
+				id: "call-timeout",
+				name: "hub-bounds",
+				arguments: { op: "wait", name: "web", timeout: 7200 },
+			}),
+		).toThrow(/timeout.*\(was 7200\)/);
+
+		const inRange = validateToolArguments(bounded, {
+			type: "toolCall",
+			id: "call-in-range",
+			name: "hub-bounds",
+			arguments: { op: "logs", name: "web", lines: 1000, timeout: 3600 },
+		}) as Record<string, unknown>;
+		expect(inRange.lines).toBe(1000);
+		expect(inRange.timeout).toBe(3600);
+	});
+});

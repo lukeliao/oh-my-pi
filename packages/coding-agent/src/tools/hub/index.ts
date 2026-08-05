@@ -87,7 +87,9 @@ const hubSchema = type({
 	"await?": type("boolean").describe('send: wait for the recipient\'s reply (invalid with to:"all")'),
 	"from?": type("string").describe("wait: only accept a message from this agent id"),
 	"ids?": type("string[]").describe("wait: job ids to watch (omit = all running jobs); cancel: job ids to kill"),
-	"timeoutMs?": type("number").describe("wait (messages/jobs): timeout in milliseconds (0 waits indefinitely)"),
+	"timeoutMs?": type("number").describe(
+		"messaging/job waits: timeout in milliseconds (0 waits indefinitely); process waits use `timeout` (seconds) — a stray `timeoutMs` is converted",
+	),
 	"peek?": type("boolean").describe("inbox: list messages without consuming them"),
 	"status?": type("'running' | 'idle' | 'parked'").describe("list: filter by status; omit for running+idle"),
 	"limit?": type("number > 0").describe(
@@ -103,14 +105,14 @@ const hubSchema = type({
 		"log?": type("string > 0").describe("regex matched against output"),
 		"port?": type("number").describe("TCP port that must accept connections"),
 		"host?": type("string > 0").describe("TCP readiness host; default 127.0.0.1"),
-		"timeout?": type("number > 0").describe("seconds to wait; default 30"),
+		"timeout?": type("number > 0 & number <= 3600").describe("seconds to wait; default 30"),
 	}).describe("start: readiness conditions; all supplied conditions must pass"),
 	"restart?": type("'no' | 'on-failure' | 'always'").describe("start: restart policy; default no"),
 	"persist?": type("boolean").describe("start: survive the last omp client exiting; default false"),
 	"detached?": type("boolean").describe(
 		"start: survive every omp and broker exit; implies persist and disables PTY input",
 	),
-	"lines?": type("number > 0").describe("logs: output lines; default 100, max 1000"),
+	"lines?": type("number > 0 & number <= 1000").describe("logs: output lines; default 100, max 1000"),
 	"head?": type("boolean").describe("logs: read from the beginning instead of the tail"),
 	"grep?": type("string > 0").describe("logs: regex filter"),
 	"follow?": type("boolean").describe("logs: wait for output newer than cursor"),
@@ -123,7 +125,7 @@ const hubSchema = type({
 	"signal?": type("'SIGINT' | 'SIGTERM' | 'SIGHUP' | 'SIGQUIT' | 'SIGKILL'").describe(
 		"send with name: process-tree signal",
 	),
-	"timeout?": type("number > 0").describe("logs/stop/wait with name: max seconds; default 30 (stop: 5)"),
+	"timeout?": type("number > 0 & number <= 3600").describe("logs/stop/wait with name: max seconds; default 30 (stop: 5)"),
 });
 
 type HubParams = typeof hubSchema.infer;
