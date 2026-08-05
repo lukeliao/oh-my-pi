@@ -9,7 +9,6 @@ import { prompt, untilAborted } from "@oh-my-pi/pi-utils";
 import { getEditStore } from "../edit/store";
 
 import { formatHashlineHeader } from "@oh-my-pi/pi-tui/tools/hashline-format";
-
 import astGrepDescription from "../prompts/tools/ast-grep.md" with { type: "text" };
 import { sessionDelegationBias } from "../task/prompt-policy";
 import { isScoutSpawnable } from "../task/spawn-policy";
@@ -216,10 +215,7 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 			const forbidTargets = [resolvedSearchPath];
 			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
 			for (const forbidTarget of forbidTargets) {
-				const forbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
-					forbidTarget,
-				);
+				const forbidError = await checkPathForbidden(this.session.settings.get("sandbox.forbidRead"), forbidTarget);
 				if (forbidError) {
 					throw new ToolError(forbidError);
 				}

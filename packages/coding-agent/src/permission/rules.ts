@@ -213,12 +213,18 @@ export function isDynamicBashCommand(command: string): boolean {
 	const segments = extractFlatShellCommandSegments(command);
 	const targets = segments.length > 0 ? segments : [trimmed];
 	return targets.some(segment => {
-		const words = segment.trim().split(/\s+/u).filter(word => word.length > 0);
+		const words = segment
+			.trim()
+			.split(/\s+/u)
+			.filter(word => word.length > 0);
 		if (words.length === 0) return false;
 		// Skip leading assignments (`FOO=bar ...`) and wrapper prefixes
 		// (`command`, `sudo`, `env`, ...) — the wrapped word is what executes.
 		let idx = 0;
-		while (idx < words.length - 1 && (ASSIGNMENT_PREFIX_RE.test(words[idx]) || PREFIX_WRAPPERS[normalizeWord(words[idx])] === true)) {
+		while (
+			idx < words.length - 1 &&
+			(ASSIGNMENT_PREFIX_RE.test(words[idx]) || PREFIX_WRAPPERS[normalizeWord(words[idx])] === true)
+		) {
 			idx++;
 		}
 		const first = normalizeWord(words[idx]);

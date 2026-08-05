@@ -26,6 +26,7 @@ import { isOmpDocsRoot, ompDocsScopeEntries } from "../internal-urls/omp-scope";
 import { InternalUrlRouter } from "../internal-urls/router";
 import { tryResolveInternalUrlSync } from "../internal-urls/hyperlink-targets";
 import type { InternalResource, ResolveContext } from "../internal-urls/types";
+
 import grepDescription from "../prompts/tools/grep.md" with { type: "text" };
 import { DEFAULT_MAX_COLUMN, truncateHead, truncateLineBytes } from "@oh-my-pi/pi-tui/tools/streaming-output";
 import { sessionDelegationBias } from "../task/prompt-policy";
