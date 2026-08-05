@@ -65,7 +65,7 @@ function stripKnownWrappers(command: string): string {
 		// env [flags] VAR=val... cmd — parse flags and VAR= pairs, then the rest is the command
 		const envRe = /^env\s+((?:-[A-Za-z](?:\s+\S+)?\s+)*)((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(.*)$/;
 		const envHit = envRe.exec(rest);
-		if (envHit && envHit[3].trim()) {
+		if (envHit?.[3].trim()) {
 			rest = envHit[3].trim();
 			changed = true;
 			continue;
@@ -82,7 +82,6 @@ function stripKnownWrappers(command: string): string {
 		if (shc) {
 			rest = shc[2];
 			changed = true;
-			continue;
 		}
 	}
 	return rest;
