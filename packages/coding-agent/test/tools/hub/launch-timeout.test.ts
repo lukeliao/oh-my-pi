@@ -20,6 +20,7 @@ function fakeClient(handler: (op: DaemonOperation) => DaemonRpcResult | Promise<
 	return {
 		projectDir: process.cwd(),
 		request: operation => Promise.resolve(handler(operation)),
+		onCompletion: () => () => {},
 		close() {},
 	};
 }
