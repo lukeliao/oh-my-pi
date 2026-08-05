@@ -58,6 +58,7 @@ import { buildNamedToolChoice } from "../utils/tool-choice";
 import type { WorkspaceTree } from "../workspace-tree";
 import { generateTaskLabel } from "./label";
 import { resolveAgentPrewalkDefault } from "./prewalk";
+import { guardSubagentHostDecisionText } from "./subagent-guard";
 import { subprocessToolRegistry } from "./subprocess-tool-registry";
 import {
 	type AgentDefinition,
@@ -690,7 +691,14 @@ export function finalizeSubprocessOutput(args: FinalizeSubprocessOutputArgs): Fi
 		}
 	}
 
-	return { rawOutput, exitCode, stderr, abortedViaYield, hasYield, structuredOutput };
+	return {
+		rawOutput: guardSubagentHostDecisionText(rawOutput),
+		exitCode,
+		stderr,
+		abortedViaYield,
+		hasYield,
+		structuredOutput,
+	};
 }
 
 /**
