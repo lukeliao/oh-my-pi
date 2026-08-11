@@ -5,7 +5,7 @@ description: Build, install, and verify the local omp distribution that bundles 
 
 # OMP Packaging & Deployment
 
-Build a host-native omp bundle that ships all 9 `semble_*` custom tools, the `semble_rs` Rust helper binary, and a local Model2Vec model as a self-contained distribution for all x64 workstations.
+Build a host-native omp bundle that ships the 8 `semble_*` custom tools (`semble_digest`, `semble_search`, `semble_deps`, `semble_impact`, `semble_tree`, `semble_find_related`, `semble_find_pattern`, `semble_encode`), the `semble_rs` Rust helper binary, and a local Model2Vec model as a self-contained distribution for all x64 workstations. (`semble_plan` was removed in 98b49860e3 — benchmark audit showed poor standalone hit-rate vs `semble_search`.)
 
 ## On a machine with the source repo (`agents_harness/oh-my-pi`)
 
@@ -36,7 +36,7 @@ Build a host-native omp bundle that ships all 9 `semble_*` custom tools, the `se
 | Path | Purpose |
 |---|---|
 | `$PREFIX/omp` | Symlink to bundle's `bin/omp` wrapper |
-| `$AGENT_DIR/tools/semble-rs/index.ts` | 9 custom tools |
+| `$AGENT_DIR/tools/semble-rs/index.ts` | 8 custom tools |
 | `$AGENT_DIR/skills/omp-packaging/SKILL.md` | This skill (user-level, available from any cwd) |
 | `$AGENT_DIR/config.yml` | `tools.xdev: true` (default since v17; custom tools mount under `xd://`)
 | `~/.omp/cache/fastembed-runtime/<version-key>/` | Pre-seeded mnemopi embedding runtime (fastembed + onnxruntime-node); copied for each missing version-key, avoids first-use network install that can stall the agent |

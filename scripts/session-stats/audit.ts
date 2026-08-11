@@ -68,7 +68,7 @@ const TOOL_REGISTRY = new Set<string>([
 	...HIDDEN_TOOL_NAMES,
 	// custom semble tools
 	"semble_digest", "semble_deps", "semble_encode", "semble_find_pattern",
-	"semble_find_related", "semble_impact", "semble_plan", "semble_search", "semble_tree",
+	"semble_find_related", "semble_impact", "semble_search", "semble_tree",
 	// advisor, issue reporting, OKF tools
 	"advise", "report_tool_issue", "okf_add", "okf_query", "okf_status", "okf_validate",
 	// currently-mounted MCP servers (mcp__<server>_<tool>; current prefix mcp__codebase_memory_mcp_)
