@@ -1885,7 +1885,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				if (sqliteForbidError) {
 					throw new ToolError(sqliteForbidError);
 				}
-				return this.#readSqlite(sqlitePath, signal);
+				return readSqlite(sqlitePath, signal);
 			}
 			// local:// and artifact:// locate backing files without their URL query;
 			// restore it only for JSON reads, leaving other schemes' query semantics alone.
