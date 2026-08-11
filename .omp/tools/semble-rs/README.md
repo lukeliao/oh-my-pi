@@ -13,7 +13,7 @@ cargo build --release --manifest-path ../semble_rs/Cargo.toml
 ## Runtime environment
 
 - `SEMBLE_RS_BIN=/absolute/path/to/semble_rs` — optional override in this workspace layout, but required when the tool directory is copied to a workspace that is not a sibling of `agents_harness/semble_rs`.
-- `SEMBLE_MODEL_PATH=/absolute/path/to/local/model` — required for `semble_search`, `semble_plan`, `semble_find_related`, and `semble_encode`. Must point to a local Model2Vec model; implicit HuggingFace downloads are blocked.
+- `SEMBLE_MODEL_PATH=/absolute/path/to/local/model` — required for `semble_search`, `semble_find_related`, and `semble_encode`. Must point to a local Model2Vec model; implicit HuggingFace downloads are blocked.
 
 ## Discovery
 
