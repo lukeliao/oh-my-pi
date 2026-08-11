@@ -1694,7 +1694,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				if (sqliteForbidError) {
 					throw new ToolError(sqliteForbidError);
 				}
-				return this.#readSqlite(sqlitePath, signal);
+				return readSqlite(sqlitePath, signal);
 			}
 
 			// `bin:main`, `bin:imports`, `bin:main:10-40`: an executable/IDB prefix
