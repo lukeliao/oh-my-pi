@@ -31,7 +31,7 @@ These files differ from upstream and may conflict on rebase:
 | `packages/coding-agent/test/system-prompt-dedup.test.ts` | OKF frontmatter test coverage |
 | `scripts/build-semble-omp-package.ts` | omp packaging: builds `semble_rs`, copies `.omp/tools` + model, generates wrapper with `PI_CODING_AGENT_DIR=~/.omp/agent` |
 | `scripts/semble-benchmark.ts` | Model2Vec benchmark script |
-| `.omp/tools/semble-rs/index.ts` | 9 custom tools (`semble_*`) |
+| `.omp/tools/semble-rs/index.ts` | 8 custom tools (`semble_*`; `semble_plan` removed 98b49860e3) |
 | `.omp/tools/semble-rs/index.test.ts` | Custom tool tests |
 | `.omp/skills/omp-packaging/SKILL.md` | Build/deploy skill |
 | `docs/semble-benchmark-results.md` | Benchmark results |
