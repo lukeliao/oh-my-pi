@@ -1249,7 +1249,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				if (sqliteForbidError) {
 					throw new ToolError(sqliteForbidError);
 				}
-				return this.#readSqlite(sqlitePath, signal);
+				return readSqlite(sqlitePath, signal);
 			}
 
 			const pdfCandidate = literalSplit.sel === undefined ? splitPdfImageReadPath(readPath) : null;
