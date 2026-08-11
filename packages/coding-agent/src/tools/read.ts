@@ -1825,7 +1825,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				if (sqliteForbidError) {
 					throw new ToolError(sqliteForbidError);
 				}
-				return this.#readSqlite(sqlitePath, signal);
+				return readSqlite(sqlitePath, signal);
 			}
 			const jsonPath = await resolveJsonReadPath(this.session, literalSplit.path, suffixCache, signal);
 			if (jsonPath) {
