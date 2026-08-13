@@ -9,6 +9,15 @@ BUNDLE_DIR="$(cd "$BUNDLE_DIR" && pwd)"
 BUNDLE_NAME="$(basename "$BUNDLE_DIR")"
 REMOTES=(liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop)
 
+# Timeouts (seconds) bounding every remote operation. ConnectTimeout only
+# bounds the SSH handshake — the remote mkdir/install.sh/version commands and
+# the rsync transfer itself each need an explicit `timeout` so a hung remote
+# never stalls the deploy.
+SSH_CONNECT_TIMEOUT=10
+SSH_CMD_TIMEOUT=120     # bounds mkdir / install.sh / omp --version on the remote
+RSYNC_TIMEOUT=1800      # bounds the bundle transfer
+SSH_OPTS=(-o ConnectTimeout="$SSH_CONNECT_TIMEOUT" -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=4)
+
 if [ ! -f "$BUNDLE_DIR/install.sh" ]; then
 	echo "error: $BUNDLE_DIR is not an omp bundle (no install.sh)" >&2
 	exit 1
@@ -20,9 +29,9 @@ echo "[1/4] installing locally"
 echo "[2/4] deploying to ${REMOTES[*]}"
 for host in "${REMOTES[@]}"; do
 	echo "  -> $host"
-	ssh -o ConnectTimeout=10 "$host" "mkdir -p ~/.local/share/omp-bundles/$BUNDLE_NAME"
-	rsync -az --info=progress2 "$BUNDLE_DIR/" "$host:~/.local/share/omp-bundles/$BUNDLE_NAME/"
-	ssh -o ConnectTimeout=10 "$host" "cd ~/.local/share/omp-bundles/$BUNDLE_NAME && ./install.sh --force"
+	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "mkdir -p ~/.local/share/omp-bundles/$BUNDLE_NAME"
+	timeout "$RSYNC_TIMEOUT" rsync -az --info=progress2 "$BUNDLE_DIR/" "$host:~/.local/share/omp-bundles/$BUNDLE_NAME/"
+	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "cd ~/.local/share/omp-bundles/$BUNDLE_NAME && ./install.sh --force"
 done
 
 echo "[3/4] version consistency check (all four must match)"
@@ -34,7 +43,7 @@ for host in local "${REMOTES[@]}"; do
 	else
 		# single-quoted: $HOME must expand on the REMOTE host (desktop runs as
 		# act_ai_server with a different home than the local user)
-		ver=$(ssh -o ConnectTimeout=10 "$host" '$HOME/.local/bin/omp --version')
+		ver=$(timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" '$HOME/.local/bin/omp --version')
 	fi
 	echo "  $host: $ver"
 	if [ -z "$expected" ]; then
