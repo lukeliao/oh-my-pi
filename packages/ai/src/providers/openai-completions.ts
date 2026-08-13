@@ -2523,6 +2523,13 @@ function mapStopReason(reason: ChatCompletionChunk.Choice["finish_reason"] | str
 			return { stopReason: "error", errorMessage: "Provider finish_reason: content_filter" };
 		case "network_error":
 			return { stopReason: "error", errorMessage: "Provider finish_reason: network_error" };
+		case "insufficient_system_resource":
+			// DeepSeek transient capacity signal (api/create-chat-completion): the
+			// upstream is momentarily out of serving capacity, not the request. Word
+			// the message to match the retry classifier's transient pattern
+			// (`insufficient[ _-]?capacity` / `provider.?returned.?error`) so the turn
+			// is retried instead of surfacing as a terminal failure.
+			return { stopReason: "error", errorMessage: "Provider returned error finish_reason: insufficient capacity" };
 		case "error":
 			// Gateways (OpenRouter, Vercel AI Gateway, …) report upstream model
 			// failures as a bare `finish_reason: "error"` with no detail. These are
