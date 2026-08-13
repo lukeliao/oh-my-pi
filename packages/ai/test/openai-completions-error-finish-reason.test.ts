@@ -6,6 +6,7 @@
 // #isTransientTransportErrorMessage) so the turn is auto-retried instead of
 // stopping with a pinned error banner.
 import { describe, expect, it } from "bun:test";
+import * as AIError from "@oh-my-pi/pi-ai/error";
 import { streamOpenAICompletions } from "@oh-my-pi/pi-ai/providers/openai-completions";
 import type { Context, FetchImpl, Model } from "@oh-my-pi/pi-ai/types";
 import { getBundledModel } from "@oh-my-pi/pi-catalog/models";
