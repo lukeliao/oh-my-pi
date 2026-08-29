@@ -88,7 +88,7 @@ const libDir = path.join(bundleDir, "lib");
 const binDir = path.join(bundleDir, "bin");
 const toolsDir = path.join(bundleDir, "tools", "semble-rs");
 const modelsDir = path.join(bundleDir, "models", "potion-code-16M");
-const skillsDir = path.join(bundleDir, "skills", "omp-packaging");
+const skillsDir = path.join(bundleDir, "skills");
 fs.mkdirSync(bundleDir, { recursive: true });
 fs.mkdirSync(libDir, { recursive: true });
 fs.mkdirSync(binDir, { recursive: true });
@@ -96,10 +96,19 @@ fs.mkdirSync(toolsDir, { recursive: true });
 fs.mkdirSync(modelsDir, { recursive: true });
 fs.mkdirSync(skillsDir, { recursive: true });
 
-// Copy skill file into bundle
-const skillSrc = path.join(repoRoot, ".omp", "skills", "omp-packaging", "SKILL.md");
-if (fs.existsSync(skillSrc)) {
-	fs.copyFileSync(skillSrc, path.join(skillsDir, "SKILL.md"));
+// Copy ALL repo-level agent skills (.omp/skills/<name>/SKILL.md) into the
+// bundle so install.sh deploys them user-level — not just omp-packaging.
+const bundledSkillFiles: string[] = [];
+const repoSkillsDir = path.join(repoRoot, ".omp", "skills");
+if (fs.existsSync(repoSkillsDir)) {
+	for (const name of fs.readdirSync(repoSkillsDir)) {
+		const skillSrc = path.join(repoSkillsDir, name, "SKILL.md");
+		if (fs.statSync(skillSrc).isFile()) {
+			fs.mkdirSync(path.join(skillsDir, name), { recursive: true });
+			fs.copyFileSync(skillSrc, path.join(skillsDir, name, "SKILL.md"));
+			bundledSkillFiles.push(`skills/${name}/SKILL.md`);
+		}
+	}
 }
 
 const ompBuildOutfile = path.relative(repoRoot, path.join(libDir, "omp"));
@@ -280,10 +289,14 @@ done
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
-mkdir -p "$PREFIX" "$AGENT_DIR/tools/semble-rs" "$AGENT_DIR/skills/omp-packaging" "$AGENT_DIR"
+mkdir -p "$PREFIX" "$AGENT_DIR/tools/semble-rs" "$AGENT_DIR"
 
 cp "$ROOT/tools/semble-rs/index.ts" "$AGENT_DIR/tools/semble-rs/index.ts"
-cp "$ROOT/skills/omp-packaging/SKILL.md" "$AGENT_DIR/skills/omp-packaging/SKILL.md"
+for skill_dir in "$ROOT"/skills/*/; do
+	skill_name="$(basename "$skill_dir")"
+	mkdir -p "$AGENT_DIR/skills/$skill_name"
+	cp "$skill_dir/SKILL.md" "$AGENT_DIR/skills/$skill_name/SKILL.md"
+done
 
 if [ ! -f "$AGENT_DIR/config.yml" ]; then
 	touch "$AGENT_DIR/config.yml"
@@ -415,7 +428,7 @@ These are only defaults; explicitly set env vars take precedence.
 		"lib/omp",
 		`lib/semble_rs${exeSuffix}`,
 		"tools/semble-rs/index.ts",
-		"skills/omp-packaging/SKILL.md",
+		...bundledSkillFiles,
 		...requiredModelFiles.map(f => `models/potion-code-16M/${f}`),
 		// Pre-seeded fastembed model weights + sidecars (the corrupt-ONNX
 		// failure mode is exactly what these hashes defend against).
