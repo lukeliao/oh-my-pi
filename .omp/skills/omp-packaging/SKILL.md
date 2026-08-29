@@ -47,5 +47,25 @@ The `omp` wrapper automatically sets `PI_CODING_AGENT_DIR` to `$AGENT_DIR` and r
 ## Do not do
 
 - Do not run `scripts/release.ts` (commits, tags, pushes — that is the official release path).
-- Do not copy `index.test.ts` or `README.md` into runtime tools directories.
 - Do not rely on cwd-relative `../semble_rs` on target machines (the wrapper sets absolute `SEMBLE_RS_BIN`).
+
+## Windows MSI distribution (since 2026-08-29)
+
+Build a per-user Windows installer (`.msi`, no admin) containing the fork
+exe, `semble_rs.exe`, the model, xd:// tools, and bundled skills:
+
+```bash
+# 1. Cross-compile the exe (needs pi_natives.win32-x64-baseline.node — see below)
+CROSS_TARGET=windows-x64 bun --cwd=packages/coding-agent run build
+# 2. Build the MSI (stages tools/skills/model from a linux bundle, cross-builds semble_rs.exe)
+bash scripts/ci-build-msi.sh 18.0.10 \
+  packages/coding-agent/dist/omp-windows-x64.exe \
+  ~/.local/share/omp-bundles/omp-<ver>-linux-x64 \
+  /tmp/omp-windows-x64.msi
+```
+
+- Requires `wixl >= 0.105` (Environment support): `micromamba create -y -p ~/.local/msitools-env -c conda-forge 'msitools=0.106'`; script auto-prefers that prefix. Also: `gcc-mingw-w64-x86-64` + `rustup target add x86_64-pc-windows-gnu` (stable; the repo's rust-toolchain.toml would otherwise poison the cross build).
+- The win32 pi_natives addon is cross-built from Linux via bazel: `bun scripts/bazel-natives.ts win32-x64-baseline`. Bazel downloads the LLVM/MSVC toolchain — set `HTTPS_PROXY` if GitHub release assets stall, and keep `~/.bazelrc` `startup --output_user_root` on a roomy disk.
+- The exe component uses REGISTRY keypaths (not file keypaths): unversioned-file costing skips identical existing exes and the upgrade uninstall then deletes them, leaving no exe. Do not switch back to file keypaths.
+- Model is pinned in-repo via git-lfs (`resources/models/potion-code-16M-v2`); CI checks out with `lfs: true` and asserts the safetensors is not an LFS pointer.
+- Validated live 2026-08-29 on real Windows (desktop WSL2 host): install / upgrade 18.0.10→18.0.11 (single product, exe recopied) / uninstall (files, env vars, PATH fragment all removed).
