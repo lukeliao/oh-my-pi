@@ -37,7 +37,7 @@ Build a host-native omp bundle that ships the 8 `semble_*` custom tools (`semble
 |---|---|
 | `$PREFIX/omp` | Symlink to bundle's `bin/omp` wrapper |
 | `$AGENT_DIR/tools/semble-rs/index.ts` | 8 custom tools |
-| `$AGENT_DIR/skills/omp-packaging/SKILL.md` | This skill (user-level, available from any cwd) |
+| `$AGENT_DIR/skills/<name>/SKILL.md` | All repo-level skills from `.omp/skills/` (omp-packaging, omp-upstream-merge, ...) installed user-level, available from any cwd |
 | `$AGENT_DIR/config.yml` | `tools.xdev: true` (default since v17; custom tools mount under `xd://`)
 | `~/.omp/cache/fastembed-runtime/<version-key>/` | Pre-seeded mnemopi embedding runtime (fastembed + onnxruntime-node); copied for each missing version-key, avoids first-use network install that can stall the agent |
 | `~/.omp/cache/fastembed/<model>/` | Pre-seeded mnemopi embedding model weights (`model_optimized.onnx` + config/tokenizer sidecars); avoids first-use HuggingFace download that can stall the agent |
