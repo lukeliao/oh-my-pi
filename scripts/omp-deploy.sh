@@ -23,7 +23,11 @@ if [ ! -f "$BUNDLE_DIR/install.sh" ]; then
 	exit 1
 fi
 
-echo "[1/4] installing locally"
+echo "[1/4] verifying bundle integrity, then installing locally"
+(cd "$BUNDLE_DIR" && sha256sum -c --quiet SHA256SUMS) || {
+	echo "error: bundle integrity check FAILED — refusing to install a corrupted bundle" >&2
+	exit 1
+}
 "$BUNDLE_DIR/install.sh" --force
 
 echo "[2/4] deploying to ${REMOTES[*]}"
@@ -31,6 +35,10 @@ for host in "${REMOTES[@]}"; do
 	echo "  -> $host"
 	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "mkdir -p ~/.local/share/omp-bundles/$BUNDLE_NAME"
 	timeout "$RSYNC_TIMEOUT" rsync -az --info=progress2 "$BUNDLE_DIR/" "$host:~/.local/share/omp-bundles/$BUNDLE_NAME/"
+	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "cd ~/.local/share/omp-bundles/$BUNDLE_NAME && sha256sum -c --quiet SHA256SUMS" || {
+		echo "error: integrity check FAILED on $host — bundle corrupted in transfer, not installing" >&2
+		exit 1
+	}
 	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "cd ~/.local/share/omp-bundles/$BUNDLE_NAME && ./install.sh --force"
 done
 
