@@ -51,7 +51,12 @@ env vars, PATH) → prints UPDATE VERIFIED or per-item FAIL lines.
    `AppData\Local\omp\omp.exe --version` before assuming failure. Unsigned
    MSI may additionally hit SmartScreen on double-click; quiet installs over
    ssh bypass that.
-7. **Never install agent files under `%USERPROFILE%\.omp` via MSI**:
+7. **`Get-Command dsh` resolves to `dsh.ps1`** (npm-global ships .ps1/.cmd/no-ext
+   shims; PowerShell prefers .ps1) and `Start-Process` on a .ps1 OPENS IT IN AN
+   EDITOR instead of executing — dsh never starts, smoke "fails", editor windows
+   pile up hidden. Always resolve `dsh.cmd` explicitly (see
+   scripts/omp-windows-update.sh and the kit's Get-DshLauncher).
+8. **Never install agent files under `%USERPROFILE%\.omp` via MSI**:
    `ProfileFolder` resolves to the shell ProfilesDirectory root (`D:\` on
    this machine), not the user profile. Everything lives under
    `%LOCALAPPDATA%\omp` with `PI_CODING_AGENT_DIR` pointing at the bundled
