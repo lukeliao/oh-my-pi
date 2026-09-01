@@ -259,4 +259,71 @@ function applyGeneratedModelPolicy(model: ModelSpec<Api>): void {
 		const reference = seedModels("alibaba-token-plan").find(candidate => candidate.id === model.id);
 		if (reference) model.name = reference.name;
 	}
+
+	if (model.provider === "ollama-cloud") {
+		model.omitMaxOutputTokens = true;
+	}
+
+	// GLM Coding Plan: the selectable 1M-context served ids; pin them so
+	// endpoint discovery or older bundled fallbacks cannot regress to 200k.
+	// GLM-5.3 succeeds GLM-5.2 with the same 1M context window, and
+	// GLM-5.3-Flash shares the tier while adding native image input that
+	// upstream metadata still reports as text-only.
+	if (
+		(model.provider === "zai" || model.provider === "zhipu-coding-plan") &&
+		(model.id === "glm-5.2" || model.id === "glm-5.3" || model.id === "glm-5.3-flash")
+	) {
+		model.contextWindow = 1_000_000;
+		model.maxTokens = 131_072;
+		if (model.id === "glm-5.3-flash") {
+			model.input = ["text", "image"];
+		}
+	}
+	// MiniMax-M3: 512K is the standard pricing tier boundary, not the
+	// model ceiling. Pin every long-context provider that serves the model
+	// (anthropic-messages `minimax`/`minimax-cn` and the openai-completions
+	// MiniMax Coding/Token Plan endpoints `minimax-code`/`minimax-code-cn`)
+	// to the documented 1M tier.
+	if (
+		model.id === "MiniMax-M3" &&
+		(model.provider === "minimax" ||
+			model.provider === "minimax-cn" ||
+			model.provider === "minimax-code" ||
+			model.provider === "minimax-code-cn")
+	) {
+		model.contextWindow = 1_000_000;
+	}
+
+	if (
+		model.api === "openai-completions" &&
+		(model.provider === "minimax-code" || model.provider === "minimax-code-cn")
+	) {
+		model.compat = {
+			...(model.compat ?? {}),
+			supportsStore: false,
+			supportsDeveloperRole: false,
+			supportsReasoningEffort: false,
+			reasoningContentField: "reasoning_content",
+		};
+		delete model.compat.thinkingFormat;
+	}
+	if (model.api === "openai-completions" && model.provider === "opencode-go" && model.id === "kimi-k2.7-code") {
+		model.compat = {
+			...(model.compat ?? {}),
+			supportsForcedToolChoice: false,
+		};
+	}
+	if (
+		(model.api === "openai-completions" || model.api === "openai-responses") &&
+		model.provider === "opencode-go" &&
+		(model.id === "deepseek-v4-flash" || model.id === "deepseek-v4-pro")
+	) {
+		model.compat = {
+			...(model.compat ?? {}),
+			supportsToolChoice: false,
+			maxTokensField: "max_tokens",
+			reasoningContentField: "reasoning_content",
+			requiresReasoningContentForToolCalls: true,
+		};
+	}
 }
