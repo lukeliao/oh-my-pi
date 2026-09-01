@@ -275,8 +275,6 @@ function applyGeneratedModelPolicy(model: ModelSpec<Api>): void {
 	if (model.provider === "ollama-cloud") {
 		model.omitMaxOutputTokens = true;
 	}
-<<<<<<< HEAD
-=======
 
 	// GLM Coding Plan: the selectable 1M-context served ids; pin them so
 	// endpoint discovery or older bundled fallbacks cannot regress to 200k.
@@ -320,23 +318,6 @@ function applyGeneratedModelPolicy(model: ModelSpec<Api>): void {
 			reasoningContentField: "reasoning_content",
 		};
 		delete model.compat.thinkingFormat;
-	}
-	if (model.api === "openai-completions" && model.provider === "wafer-serverless" && model.reasoning) {
-		const thinkingFormat = resolveWaferServerlessThinkingFormat(model.id, undefined);
-		if (thinkingFormat === "zai") {
-			model.compat = {
-				...(model.compat ?? {}),
-				thinkingFormat,
-				reasoningContentField: "reasoning_content",
-				supportsDeveloperRole: false,
-			};
-		}
-	}
-	if (model.api === "openai-completions" && model.provider === "opencode-go" && isMimoModelIdOrName(model.id)) {
-		model.compat = {
-			...(model.compat ?? {}),
-			supportsToolChoice: false,
-		};
 	}
 	if (model.api === "openai-completions" && model.provider === "opencode-go" && model.id === "kimi-k2.7-code") {
 		model.compat = {
@@ -472,5 +453,4 @@ function applyOpenAICatalogPolicy(model: ModelSpec<Api>, parsedModel: OpenAIMode
 	if (model.api === "openai-codex-responses" && CODEX_GPT_5_6_1M_MODEL_IDS[model.id]) {
 		model.contextWindow = Math.max(model.contextWindow ?? 0, 1_000_000);
 	}
->>>>>>> e85011fedb (chore: merge upstream v17.2.5, deepseek v4 flash effort fixes)
 }

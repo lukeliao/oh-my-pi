@@ -115,9 +115,9 @@ function pickContextFrontmatter(frontmatter: ParsedFrontmatter | null): ContextF
 }
 
 function attachFrontmatter(item: ContextFile): ContextFile {
-	const { frontmatter } = parseFrontmatter(item.content);
+	const { frontmatter, body } = parseFrontmatter(item.content);
 	const fm = pickContextFrontmatter(frontmatter);
-	return fm ? { ...item, frontmatter: fm } : item;
+	return { ...item, content: body, frontmatter: fm };
 }
 
 export async function loadAgentsMd(ctx: LoadContext): Promise<LoadResult<ContextFile>> {
