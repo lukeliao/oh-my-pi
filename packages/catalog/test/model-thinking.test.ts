@@ -199,21 +199,8 @@ describe("model thinking derivation", () => {
 		});
 
 		expect(fireworks.thinking?.effortMap).toEqual({ minimal: "none" });
-<<<<<<< HEAD
 		expect(groqQwen.thinking?.effortMap).toBeUndefined();
 		// Explicit compat overrides still win over identity-derived wire values.
-=======
-		expect(groqQwen.thinking?.effortMap).toEqual({
-			minimal: "default",
-			low: "default",
-			medium: "default",
-			high: "default",
-		});
-		// DeepSeek V4 Flash's official ladder is low/high/max (official Thinking
-		// Mode docs: low→low, high→high, xhigh→high, max→max); explicit compat
-		// overrides still win over the identity wire values.
-		expect(getSupportedEfforts(deepseek)).toEqual([Effort.Low, Effort.High, Effort.Max]);
->>>>>>> e85011fedb (chore: merge upstream v17.2.5, deepseek v4 flash effort fixes)
 		expect(deepseek.thinking?.effortMap).toEqual({ max: "max-plus" });
 		// OpenRouter-hosted Anthropic adaptive models carry the wire-exact
 		// five-tier ladder with no remapping.
