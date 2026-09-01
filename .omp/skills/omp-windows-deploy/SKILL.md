@@ -62,3 +62,10 @@ env vars, PATH) → prints UPDATE VERIFIED or per-item FAIL lines.
 - 2026-08-29: omp 18.0.10-custom.202608291624 installed (ProductCode
   `{03894C60-FA5E-4FC6-8A3A-3448381B2DF1}` at time of install), validated
   install/upgrade/uninstall lifecycle end-to-end.
+- Model providers (zhipu GLM + deepseek) live in
+  `C:\Users\hello\AppData\Local\omp\agent\models.yml` — NOT in the MSI
+  (contains API keys; never ship keys inside a distributable installer).
+  After a fresh install or agent-dir wipe, mirror it from the workstation:
+  `scp ~/.omp/agent/models.yml desktop:/mnt/c/Users/hello/AppData/Local/omp/agent/models.yml`
+  (workstation file has more providers; the Windows copy currently carries
+  only zhipu + deepseek). Verify with `omp models list`.
