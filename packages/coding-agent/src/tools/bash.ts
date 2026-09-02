@@ -74,6 +74,7 @@ import {
 	cfgBashDirenv,
 	cfgBashDirenvLoadTimeoutMs,
 	cfgBashInterceptorEnabled,
+	cfgBashInterceptorExtraPatterns,
 	cfgBashInterceptorPatterns,
 	cfgBashPatterns,
 } from "../exec/settings";
@@ -509,6 +510,8 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 	readonly name = "bash";
 	/** Bash reads `skill://` paths through its shell filesystem, including as a working directory. */
 	readonly readsSkillUris = true;
+	/** Repeat-block counters per policyKey: escalates when the same policy blocks repeated command variants. */
+	#interceptCounts = new Map<string, number>();
 	readonly approval = (args: unknown): ToolApprovalDecision => {
 		const rawCommand = (args as Partial<BashToolInput>).command;
 		const command = typeof rawCommand === "string" ? rawCommand : "";
@@ -1022,14 +1025,30 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		// leading `cd ... &&` wrappers do not hide either shell-navigation rules
 		// or the dedicated-tool command that follows the directory change.
 		if (cfgBashInterceptorEnabled.get(this.session.settings)) {
-			const rules = cfgBashInterceptorPatterns
-				.get(this.session.settings)
-				.filter(rule => !name || rule.tool !== "bash");
+			// Extra patterns are checked before the built-in defaults; the first
+			// matching rule wins, so a narrow extra overrides a broad default.
+			const rules = [
+				...cfgBashInterceptorExtraPatterns.get(this.session.settings),
+				...cfgBashInterceptorPatterns.get(this.session.settings),
+			].filter(rule => !name || rule.tool !== "bash");
 			const commandsToCheck = rawCommand === command ? [command] : [rawCommand, command];
 			for (const commandToCheck of commandsToCheck) {
 				const interception = checkBashInterception(commandToCheck, ctx?.toolNames ?? [], rules, rawCommand);
 				if (interception.block) {
-					throw new ToolError(interception.message ?? "Command blocked");
+					const key = interception.policyKey ?? "bash";
+					const count = (this.#interceptCounts.get(key) ?? 0) + 1;
+					this.#interceptCounts.set(key, count);
+					let message = interception.message ?? "Command blocked";
+					if (count >= 2) {
+						message += `\n\nRepeat block #${count} for policy ${key}: earlier attempts — including variants — all failed. Stop issuing bash for this operation; run the blocked portion through ${interception.suggestedTool ?? "the suggested dedicated tool"}.`;
+					}
+					throw new ToolError(message, {
+						code: "shadowed_tool",
+						dedicatedTool: interception.suggestedTool,
+						policyKey: key,
+						retryable: false,
+						repeatCount: count,
+					});
 				}
 			}
 		}
