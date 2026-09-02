@@ -38,7 +38,7 @@ import type { ToolSession } from ".";
 import { truncateForPrompt } from "./approval";
 import { type BashInteractiveResult, runInteractiveBashPty } from "./bash-interactive";
 import type { ShellTrace } from "@oh-my-pi/pi-wire";
-import { checkBashInterception, checkForbidReadBash } from "./bash-interceptor";
+import { checkBashInterception, checkForbidReadBash, type InterceptionResult } from "./bash-interceptor";
 import { rewriteGitWorktreeAdd } from "./bash-worktree-rewrite";
 import { canUseInteractiveBashPty } from "./bash-pty-selection";
 import { evaluateBashRules, getPermissionRules } from "../permission/rules";
@@ -78,6 +78,7 @@ import {
 	cfgBashDirenvLoadTimeoutMs,
 	cfgBashGitGuard,
 	cfgBashInterceptorEnabled,
+	cfgBashInterceptorExtraPatterns,
 	cfgBashInterceptorPatterns,
 	cfgBashPatterns,
 } from "../exec/settings";
@@ -589,21 +590,28 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 	readonly name = "bash";
 	/** Bash reads `skill://` paths through its shell filesystem, including as a working directory. */
 	readonly readsSkillUris = true;
+	/** Repeat-block counters per policyKey: escalates when the same policy blocks repeated command variants. */
+	#interceptCounts = new Map<string, number>();
+
 	/**
-	 * The interceptor message for a call, checking the raw command and the one after a leading
+	 * The interceptor result for a call, checking the raw command and the one after a leading
 	 * `cd … &&` so the wrapper hides neither shell-navigation rules nor the dedicated-tool command.
+	 * Extra patterns are checked before the built-in defaults; the first matching rule wins.
 	 */
 	#interception(
 		rawCommand: string,
 		command: string,
 		name: string | undefined,
 		toolNames: string[],
-	): string | undefined {
+	): InterceptionResult | undefined {
 		if (!cfgBashInterceptorEnabled.get(this.session.settings)) return undefined;
-		const rules = cfgBashInterceptorPatterns.get(this.session.settings).filter(rule => !name || rule.tool !== "bash");
+		const rules = [
+			...cfgBashInterceptorExtraPatterns.get(this.session.settings),
+			...cfgBashInterceptorPatterns.get(this.session.settings),
+		].filter(rule => !name || rule.tool !== "bash");
 		for (const commandToCheck of rawCommand === command ? [command] : [rawCommand, command]) {
 			const interception = checkBashInterception(commandToCheck, toolNames, rules, rawCommand);
-			if (interception.block) return interception.message ?? "Command blocked";
+			if (interception.block) return interception;
 		}
 		return undefined;
 	}
@@ -617,7 +625,12 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		const name = typeof input.name === "string" ? blankToUndefined(input.name) : undefined;
 		const interception = this.#interception(command, cwdCommand, name, ctx?.toolNames ?? []);
 		if (interception) {
-			return { tier: "exec", override: true, policy: "deny", reason: interception.replace(/^Blocked:\s*/u, "") };
+			return {
+				tier: "exec",
+				override: true,
+				policy: "deny",
+				reason: (interception.message ?? "Command blocked").replace(/^Blocked:\s*/u, ""),
+			};
 		}
 		const rawPatterns = cfgBashPatterns.get(this.session.settings);
 
@@ -1334,7 +1347,22 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		}
 
 		const interception = this.#interception(rawCommand, command, name, ctx?.toolNames ?? []);
-		if (interception) throw new ToolError(interception);
+		if (interception) {
+			const key = interception.policyKey ?? "bash";
+			const count = (this.#interceptCounts.get(key) ?? 0) + 1;
+			this.#interceptCounts.set(key, count);
+			let message = interception.message ?? "Command blocked";
+			if (count >= 2) {
+				message += `\n\nRepeat block #${count} for policy ${key}: earlier attempts — including variants — all failed. Stop issuing bash for this operation; run the blocked portion through ${interception.suggestedTool ?? "the suggested dedicated tool"}.`;
+			}
+			throw new ToolError(message, {
+				code: "shadowed_tool",
+				dedicatedTool: interception.suggestedTool,
+				policyKey: key,
+				retryable: false,
+				repeatCount: count,
+			});
+		}
 
 		// sandbox.forbidRead — conservative bash subset: block a read-style
 		// command (`cat`/`head`/`tail`/`less`/`more`) whose literal path argument
