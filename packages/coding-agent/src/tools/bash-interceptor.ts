@@ -18,6 +18,8 @@ export interface InterceptionResult {
 	message?: string;
 	/** Suggested tool to use instead */
 	suggestedTool?: string;
+	/** Stable policy identity for the block; BashTool uses it to escalate on repeat blocks. */
+	policyKey?: string;
 }
 
 /**
@@ -149,6 +151,21 @@ function stripKnownWrappers(command: string): string {
 }
 
 /**
+ * Build a block result for a matched rule: deterministic-policy wording plus a
+ * stable `policyKey` (explicit or derived from the suggested tool) that
+ * `BashTool` uses to escalate when the same policy blocks repeated variants.
+ */
+function blockedResult(rule: BashInterceptorRule, originalCommand: string): InterceptionResult {
+	const policyKey = rule.policyKey ?? `bash:shadowed:${rule.tool}`;
+	return {
+		block: true,
+		message: `Blocked: ${rule.message}\n\nDeterministic policy (${policyKey}): retrying this command, or any bash variant of it, will be blocked again.\n\nOriginal command: ${originalCommand}`,
+		suggestedTool: rule.tool,
+		policyKey,
+	};
+}
+
+/**
  * Check if a bash command should be intercepted.
  *
  * BEST-EFFORT NUDGE, NOT A HARD GATE:
@@ -192,11 +209,7 @@ export function checkBashInterception(
 			// A configured global or sticky regex carries state across calls.
 			regex.lastIndex = 0;
 			if (regex.test(candidate)) {
-				return {
-					block: true,
-					message: `Blocked: ${rule.message}\n\nOriginal command: ${originalCommand}`,
-					suggestedTool: rule.tool,
-				};
+				return blockedResult(rule, originalCommand);
 			}
 		}
 
@@ -207,11 +220,7 @@ export function checkBashInterception(
 			if (inner && inner !== candidate) {
 				regex.lastIndex = 0;
 				if (regex.test(inner)) {
-					return {
-						block: true,
-						message: `Blocked: ${rule.message}\n\nOriginal command: ${originalCommand}`,
-						suggestedTool: rule.tool,
-					};
+					return blockedResult(rule, originalCommand);
 				}
 			}
 		}

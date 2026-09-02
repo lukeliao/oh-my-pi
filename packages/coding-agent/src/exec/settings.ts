@@ -162,6 +162,31 @@ export const cfgBashInterceptorPatterns = register({
 	default: DEFAULT_BASH_INTERCEPTOR_RULES,
 });
 
+// Extra interceptor rules checked before `patterns`; first matching rule wins,
+// so a narrow extra can override a broad built-in default without copying the
+// whole default rule set.
+export const cfgBashInterceptorExtraPatterns = register({
+	id: "bashInterceptor.extraPatterns",
+	type: "array",
+	default: [],
+});
+
+// WS2 permission rules — a stricter, Reasonix-style bash gate layered in
+// front of the legacy bash patterns. Empty by default so behavior is
+// unchanged until rules are configured.
+export const cfgPermissionRules = register({
+	id: "permission.rules",
+	type: "array",
+	default: [],
+	ui: {
+		tab: "shell",
+		group: "Bash",
+		label: "Bash Permission Rules",
+		description:
+			"Ordered bash permission rules. Each item has match and action fields. Matches use the form Bash, Bash=<literal>, Bash(<subject>), or Bash(<subject>:*). Actions: deny, ask, or allow. Empty by default (no-op).",
+	},
+});
+
 // WS3 forbid_read — deny-list gate for the built-in path-reading tools
 // (read, glob, grep, ast_grep). This is a process-internal mitigation, NOT
 // an OS-level hard gate: it deliberately does NOT cover bash (beyond a
