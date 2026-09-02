@@ -49,7 +49,7 @@ These rules govern the **`bash` tool only**. They do not constrain shells starte
 
 ## 2) Optional interception (blocked-command path)
 
-If `bashInterceptor.enabled` is true, `BashTool` loads rules from settings (`getBashInterceptorRules()`) and runs `checkBashInterception()` against the command — checking both the original and the cwd-normalized form (after a leading `cd … &&` is extracted) when they differ. Rule syntax is unchanged: each rule checks the complete input first, then raw flat command fragments separated by unquoted/unescaped `&&`, `||`, `;`, `|`, `|&`, `&`, or newlines, then those fragments with leading `NAME=value` assignments removed. Fragments that receive piped stdin from `|` or `|&` are excluded from the fragment candidates, including across blank/comment continuation lines, because a stdin-consuming stage cannot be replaced by a path-based dedicated tool.
+If `bashInterceptor.enabled` is true, `BashTool` loads rules from settings (`getBashInterceptorRules()` — `bashInterceptor.extraPatterns` prepended to `bashInterceptor.patterns`, which defaults to the built-in rules when unset) and runs `checkBashInterception()` against the command — checking both the original and the cwd-normalized form (after a leading `cd … &&` is extracted) when they differ. Rule syntax is unchanged: each rule checks the complete input first, then raw flat command fragments separated by unquoted/unescaped `&&`, `||`, `;`, `|`, `|&`, `&`, or newlines, then those fragments with leading `NAME=value` assignments removed. Fragments that receive piped stdin from `|` or `|&` are excluded from the fragment candidates, including across blank/comment continuation lines, because a stdin-consuming stage cannot be replaced by a path-based dedicated tool.
 
 Interception behavior:
 
@@ -58,21 +58,22 @@ Interception behavior:
   - the suggested tool is present in `ctx.toolNames`.
 - invalid regex rules are silently skipped.
 - on block, `BashTool` throws `ToolError` with message:
-  - `Blocked: ...`
+  - `Blocked: <rule message>` plus a deterministic-policy line: `Deterministic policy (<policyKey>): retrying this command, or any bash variant of it, will be blocked again.`
   - original command included.
+  - from the 2nd block of the same `policyKey` in a session, a repeat-block escalation line telling the model to stop retrying bash variants and route the blocked portion through the suggested tool.
 - heredocs, parameter expansion, command substitutions, backticks, grouping, and malformed quoting do not produce extra fragments; they retain only the complete-input check. Interception is best-effort routing to dedicated tools, not a shell-security policy.
 
 Default rule patterns (defined in code) target common misuses:
 
 - file readers (`cat`, `head`, `tail`, ...)
 - search tools (`grep`, `rg`, ...)
-- file finders (`find`, `fd`, ...)
+- file finders (`find`, `fd`, `locate`) — only for pure name/type glob queries; commands with glob-inexpressible predicates or actions (`-newer`, `-mtime`, `-mmin`, `-size`, `-perm`, `-user`/`-group`, `-delete`, `-exec`/`-ok`, `-ls`/`-fls`/`-printf`, fd `--changed-*`) are not intercepted
 - in-place editors (`sed -i`, `perl -i`, `awk -i inplace`)
 - shell redirection writes (`echo ... > file`, heredoc redirection)
 
 ### Caveat
 
-`InterceptionResult` includes `suggestedTool`, but `BashTool` currently surfaces only the message text (no structured suggested-tool field in `details`).
+`InterceptionResult` carries `policyKey` and `suggestedTool`; `BashTool` surfaces the message text (with the escalation line appended) and throws the `ToolError` with structured context `{ code: "shadowed_tool", dedicatedTool, policyKey, retryable: false, repeatCount }` so hooks, extensions, and future loop guards can consume the policy identity without parsing prose.
 
 ## 3) CWD validation and timeout resolution
 

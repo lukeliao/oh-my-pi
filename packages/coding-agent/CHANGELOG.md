@@ -114,6 +114,11 @@
 - Ranged reads of text without bracket characters skip unnecessary lexical context scanning.
 - Muse Code sessions send a compact hashline edit description (~3 KB less per request); all other models keep the full prompt.
 - Transcript usage row now shows the prompt-to-yield time as a bare delta, keeping the clock icon for time to first token only.
+### Changed
+
+- Bash interceptor: the default `find`/`fd`/`locate` rule now fires only for pure name/type glob queries; commands with glob-inexpressible predicates or actions (`-newer`, `-mtime`, `-size`, `-perm`, `-delete`, `-exec`, `--changed-*`) are left to Bash.
+- Bash interceptor: `bashInterceptor.extraPatterns` extends or narrows the built-in rules without copying them; extras are checked before `patterns` (first match wins). Rules accept an optional `policyKey`.
+- Bash interceptor blocks now state the policy key and that retrying variants through bash will fail; the 2nd+ block of the same policy in a session appends a repeat-block escalation line, and the thrown `ToolError` carries structured context (`code: "shadowed_tool"`, `dedicatedTool`, `policyKey`, `retryable: false`, `repeatCount`).
 
 ### Fixed
 

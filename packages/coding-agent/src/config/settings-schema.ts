@@ -419,9 +419,16 @@ export const DEFAULT_BASH_INTERCEPTOR_RULES: BashInterceptorRule[] = [
 		message: "Use the `grep` tool instead of grep/rg. It respects .gitignore and provides structured output.",
 	},
 	{
-		pattern: "^\\s*(find|fd|locate)\\s+.*(-name|-iname|-type|--type|-glob)",
+		// Only intercept when the query is one the glob tool can actually replace:
+		// a name/type predicate present AND no glob-inexpressible predicate or
+		// action anywhere in the segment (time: -newer/-mtime/-mmin; -size;
+		// perms/owner; -delete/-exec/-ok; -ls/-fls/-printf output; fd --changed-*).
+		// Those commands still run in bash because glob cannot express them.
+		pattern:
+			"^\\s*(?:find|fd|locate)\\s+(?!(?:[\\s\\S]*\\s)?-{1,2}(?:delete|exec\\w*|ok\\w*|newer\\w*|[mac]time|[acm]min|size|perm\\w*|owner|(?:no)?user|(?:no)?group|readable|writable|executable|links|inum|samefile|used|printf|fls|ls|fprint\\w*|changed-(?:within|before))\\b)(?=(?:[\\s\\S]*\\s)?(?:-name|-iname|-glob|--type|-type)\\b)",
 		tool: "glob",
-		message: "Use the `glob` tool instead of find/fd. It respects .gitignore and is faster for glob patterns.",
+		message:
+			"Use the `glob` tool instead of find/fd. It respects .gitignore and is faster for name/type patterns (e.g. `find . -name '*.ts'` → glob `**/*.ts`).",
 	},
 	{
 		pattern: "^\\s*sed\\s+(-i|--in-place)",
@@ -4038,6 +4045,7 @@ export const SETTINGS_SCHEMA = {
 		},
 	},
 	"bashInterceptor.patterns": { type: "array", default: DEFAULT_BASH_INTERCEPTOR_RULES },
+	"bashInterceptor.extraPatterns": { type: "array", default: [] },
 
 	// WS3 forbid_read — deny-list gate for the built-in path-reading tools
 	// (read, glob, grep, ast_grep). This is a process-internal mitigation, NOT
@@ -6489,7 +6497,8 @@ export interface BashInterceptorRule {
 	flags?: string;
 	tool: string;
 	message: string;
-	allowSubcommands?: string[];
+	/** Stable policy identity used in block messages and repeat-block escalation; derived from `tool` when omitted. */
+	policyKey?: string;
 }
 
 export interface ShellMinimizerSettings {

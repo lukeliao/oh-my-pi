@@ -61,6 +61,7 @@ Two independent settings can prevent a Bash subprocess from starting. They serve
 | --- | --- | --- | --- |
 | `bash.patterns` | Command-specific execution policy | Literal text with `*` wildcards | Allows the call, requests human approval, or denies it. |
 | `bashInterceptor.patterns` | Prefer a dedicated tool over Bash | JavaScript regular expression, optional flags, tool name, and message | Returns a Bash tool error telling the model to call the named dedicated tool instead. |
+| `bashInterceptor.extraPatterns` | Extend or narrow the built-in routing without replacing it | Same as `bashInterceptor.patterns` | Same as `bashInterceptor.patterns`; checked before `patterns` (first match wins). |
 
 ### `bash.patterns`: permission policy
 
@@ -102,7 +103,19 @@ bashInterceptor:
 
 An interceptor rule only applies when its `tool` is available in the current session. If `read` is disabled, a `cat` rule targeting `read` does not block the Bash call. This makes the interceptor a best-effort capability preference rather than an execution-security boundary.
 
-The built-in default rules route common operations such as `cat` to `read`, `rg` to `grep`, in-place `sed` to `edit`, shell redirection to `write`, and unmanaged services/background processes to `hub`. See `DEFAULT_BASH_INTERCEPTOR_RULES` in `packages/coding-agent/src/config/settings-schema.ts` for the complete list.
+The built-in default rules route common operations such as `cat` to `read`, `rg` to `grep`, in-place `sed` to `edit`, shell redirection to `write`, and unmanaged services/background processes to `hub`. The default `find`/`fd` rule fires only for pure name/type glob queries; commands that also use glob-inexpressible predicates or actions (`-newer`, `-mtime`, `-size`, `-perm`, `-delete`, `-exec`, `--changed-*`) are left to Bash because the glob tool cannot express them. See `DEFAULT_BASH_INTERCEPTOR_RULES` in `packages/coding-agent/src/config/settings-schema.ts` for the complete list.
+
+`bashInterceptor.patterns` replaces the built-in defaults entirely. To keep the defaults and only add or narrow rules, use `bashInterceptor.extraPatterns`: extras are checked before `patterns` and the first matching rule wins, so a narrow extra can override a broad default without copying the built-in list. An optional `policyKey` gives the block a stable identity used in the block message and in repeat-block escalation:
+
+```yaml
+bashInterceptor:
+  enabled: true
+  extraPatterns:
+    - pattern: '^\s*(cargo|rustc)\s'
+      tool: bash
+      policyKey: project:no-bare-rust
+      message: "Bare rust builds bypass the build system; use the project build entrypoint."
+```
 
 For compatibility with existing custom regexes, the interceptor always checks the complete original command first. It then checks raw, flat command fragments separated by unquoted and unescaped `&&`, `||`, `;`, `|`, `&`, or newlines. It also checks fragments after leading environment assignments are removed:
 
@@ -127,7 +140,7 @@ Choose the setting by the desired outcome:
 1. `BashTool.execute()` in `packages/coding-agent/src/tools/bash.ts` reads `command`, validates `env`, and defaults `timeout` to `300`.
 2. If `cwd` is absent, it rewrites a leading `cd <path> && ...` into the structured `cwd` field and strips that prefix from `command`.
 3. If `async: true` is requested while `async.enabled` is off, it throws `ToolError` before any execution.
-4. If `bashInterceptor.enabled` is on, `checkBashInterception()` runs against both the original command and the `cd`-stripped command. For each form, configured regexes still check the complete input first, then each flat command separated by unquoted/unescaped `&&`, `||`, `;`, `|`, `|&`, `&`, or newlines (excluding stages that consume piped stdin from `|` or `|&`, including across blank/comment continuations), followed by versions of those fragments without leading `NAME=value` assignments. A matching enabled rule throws before URL expansion or execution.
+4. If `bashInterceptor.enabled` is on, `checkBashInterception()` runs against both the original command and the `cd`-stripped command. For each form, configured regexes still check the complete input first, then each flat command separated by unquoted/unescaped `&&`, `||`, `;`, `|`, `|&`, `&`, or newlines (excluding stages that consume piped stdin from `|` or `|&`, including across blank/comment continuations), followed by versions of those fragments without leading `NAME=value` assignments. A matching enabled rule throws before URL expansion or execution; the error carries the rule's `policyKey`, and the 2nd+ block of the same policy in a session appends a repeat-block escalation line telling the model to stop retrying bash variants.
 5. `expandInternalUrls()` rewrites supported internal URLs inside `command`, each `env` value, and protocol-looking `cwd` values. Command replacements are shell-escaped; `env` and `cwd` replacements use raw filesystem/string values because they are not interpolated into shell text.
 6. `resolveToCwd()` resolves `cwd` against `session.cwd`; `fs.stat()` verifies that the target exists and is a directory.
 7. `timeout: 0` disables the deadline. Otherwise `clampTimeout("bash", requestedTimeoutSec, tools.maxTimeout)` applies a positive global ceiling (when configured), then `TOOL_TIMEOUTS.bash` (`min: 1`, `max: 3600`). When clamped, `#buildCompletedResult()` / `#buildBackgroundStartResult()` append a notice line.

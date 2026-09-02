@@ -1059,9 +1059,12 @@ export class Settings {
 
 	/**
 	 * Get bash interceptor rules (typed accessor for complex array config).
+	 * `extraPatterns` are prepended: checkBashInterception returns the first
+	 * matching rule, so narrow extras can override broader built-in defaults
+	 * without copying the whole default rule set.
 	 */
 	getBashInterceptorRules(): BashInterceptorRule[] {
-		return this.get("bashInterceptor.patterns");
+		return [...this.get("bashInterceptor.extraPatterns"), ...this.get("bashInterceptor.patterns")];
 	}
 
 	#modelRolesFromLayer(layer: RawSettings): Record<string, string> {

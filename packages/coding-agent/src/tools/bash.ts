@@ -594,6 +594,8 @@ function stripBackgroundNotice(text: string, async: BashToolDetails["async"] | u
  */
 export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSchemaWithAsync, BashToolDetails> {
 	readonly name = "bash";
+	/** Repeat-block counters per policyKey: escalates when the same policy blocks repeated command variants. */
+	#interceptCounts = new Map<string, number>();
 	readonly approval = (args: unknown): ToolApprovalDecision => {
 		const rawCommand = (args as Partial<BashToolInput>).command;
 		const command = typeof rawCommand === "string" ? rawCommand : "";
@@ -1073,7 +1075,20 @@ export class BashTool implements AgentTool<typeof bashSchemaBase | typeof bashSc
 			for (const commandToCheck of commandsToCheck) {
 				const interception = checkBashInterception(commandToCheck, ctx?.toolNames ?? [], rules, rawCommand);
 				if (interception.block) {
-					throw new ToolError(interception.message ?? "Command blocked");
+					const key = interception.policyKey ?? "bash";
+					const count = (this.#interceptCounts.get(key) ?? 0) + 1;
+					this.#interceptCounts.set(key, count);
+					let message = interception.message ?? "Command blocked";
+					if (count >= 2) {
+						message += `\n\nRepeat block #${count} for policy ${key}: earlier attempts — including variants — all failed. Stop issuing bash for this operation; run the blocked portion through ${interception.suggestedTool ?? "the suggested dedicated tool"}.`;
+					}
+					throw new ToolError(message, {
+						code: "shadowed_tool",
+						dedicatedTool: interception.suggestedTool,
+						policyKey: key,
+						retryable: false,
+						repeatCount: count,
+					});
 				}
 			}
 		}
