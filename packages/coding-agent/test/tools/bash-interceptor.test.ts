@@ -1,13 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
 import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import {
 	type BashInterceptorRule,
 	DEFAULT_BASH_INTERCEPTOR_RULES,
 } from "@oh-my-pi/pi-coding-agent/config/settings-schema";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
-import { BashTool, type BashToolInput } from "@oh-my-pi/pi-coding-agent/tools/bash";
 import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
+import { BashTool, type BashToolInput } from "@oh-my-pi/pi-coding-agent/tools/bash";
+import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
 
 function createBashTool(rules: BashInterceptorRule[]): BashTool {
 	const session = {
@@ -59,7 +61,9 @@ describe("BashTool interception", () => {
 			tool.execute("tool-call", { command }, undefined, undefined, {
 				toolNames: ["read"],
 			} as AgentToolContext),
-		).rejects.toThrow(`Use read instead.\n\nOriginal command: ${command}`);
+		).rejects.toThrow(
+			`Use read instead.\n\nDeterministic policy (bash:shadowed:read): retrying this command, or any bash variant of it, will be blocked again.\n\nOriginal command: ${command}`,
+		);
 	});
 });
 
@@ -315,4 +319,120 @@ describe("build-discipline interception (project rules)", () => {
 			expect(checkBashInterception(command, tools, buildRules).block).toBe(false);
 		},
 	);
+});
+
+describe("default find/fd glob rule", () => {
+	const tools = ["glob"];
+
+	it.each([
+		"find . -name '*.ts'",
+		'find src -type f -name "*.test.ts"',
+		"find . -iname foo",
+		"fd --type file bar",
+		"find /opt/my-size -name x",
+	])("blocks pure name/type find %s", command => {
+		expect(checkBashInterception(command, tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(true);
+	});
+
+	it.each([
+		"find . -type f -newer ref.txt",
+		"find . -name '*.log' -delete",
+		"find . -type d -exec chmod 755 {} +",
+		"find . -size +10M -name '*.iso'",
+		"find . -mtime -7 -name '*.log'",
+		"find . -user www-data -name x",
+		"find . -perm 644 -name x",
+		"fd --changed-within 1d --type file",
+	])("does not block glob-inexpressible find %s", command => {
+		expect(checkBashInterception(command, tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(false);
+	});
+});
+
+describe("policyKey and repeat-block escalation", () => {
+	const rules: BashInterceptorRule[] = [{ pattern: "^\\s*find\\s", tool: "glob", message: "use the glob tool" }];
+	const ctx = { toolNames: ["glob"] } as AgentToolContext;
+
+	it("derives the policyKey from the suggested tool by default", () => {
+		const result = checkBashInterception("find . -name x", ["glob"], rules);
+		expect(result.block).toBe(true);
+		expect(result.policyKey).toBe("bash:shadowed:glob");
+	});
+
+	it("uses an explicit policyKey and marks the block deterministic", () => {
+		const result = checkBashInterception("find . -name x", ["glob"], [{ ...rules[0], policyKey: "project:custom" }]);
+		expect(result.policyKey).toBe("project:custom");
+		expect(result.message).toContain("Deterministic policy (project:custom)");
+		expect(result.message).toContain("will be blocked again");
+	});
+
+	it("escalates on the second block of the same policy", async () => {
+		const tool = createBashTool(rules);
+		await expect(tool.execute("a", { command: "find . -name x" }, undefined, undefined, ctx)).rejects.toThrow(
+			"use the glob tool",
+		);
+		await expect(tool.execute("b", { command: "find . -iname y" }, undefined, undefined, ctx)).rejects.toThrow(
+			/Repeat block #2 for policy bash:shadowed:glob/,
+		);
+	});
+
+	it("exposes structured policy details on the thrown ToolError", async () => {
+		const tool = createBashTool(rules);
+		try {
+			await tool.execute("c", { command: "find . -name z" }, undefined, undefined, ctx);
+			throw new Error("expected the interceptor to block");
+		} catch (error) {
+			expect(error).toBeInstanceOf(ToolError);
+			expect((error as ToolError).context).toMatchObject({
+				code: "shadowed_tool",
+				dedicatedTool: "glob",
+				policyKey: "bash:shadowed:glob",
+				retryable: false,
+				repeatCount: 1,
+			});
+		}
+	});
+});
+
+describe("extraPatterns precedence (extras before patterns)", () => {
+	const extras: BashInterceptorRule[] = [
+		{
+			pattern: "^\\s*find\\s+\\.git\\b",
+			tool: "bash",
+			policyKey: "allow:find-git",
+			message: "searching .git internals is allowed in this project",
+		},
+	];
+
+	it("a narrow extra shadows the broad default for its case", () => {
+		const result = checkBashInterception(
+			"find .git/objects -name x",
+			["bash", "glob"],
+			[...extras, ...DEFAULT_BASH_INTERCEPTOR_RULES],
+		);
+		expect(result.policyKey).toBe("allow:find-git");
+	});
+
+	it("built-in defaults still apply for everything else", () => {
+		const result = checkBashInterception(
+			"find src -name x",
+			["bash", "glob"],
+			[...extras, ...DEFAULT_BASH_INTERCEPTOR_RULES],
+		);
+		expect(result.policyKey).toBe("bash:shadowed:glob");
+	});
+});
+
+describe("getBashInterceptorRules extraPatterns merge", () => {
+	it("prepends extras to patterns", () => {
+		const extra: BashInterceptorRule = {
+			pattern: "^\\s*sqlite3\\s",
+			tool: "bash",
+			policyKey: "project:db",
+			message: "use the db-query script",
+		};
+		const settings = Settings.isolated({
+			"bashInterceptor.extraPatterns": [extra],
+		});
+		expect(settings.getBashInterceptorRules()).toEqual([extra, ...DEFAULT_BASH_INTERCEPTOR_RULES]);
+	});
 });

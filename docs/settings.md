@@ -194,7 +194,19 @@ bashInterceptor:
       message: "Use the read tool instead."
 ```
 
-The named replacement tool must be available in the current session or the interceptor does not block the Bash call. For a detailed comparison of permission policy and dedicated-tool routing, including compound-command behavior and ordering, see [the Bash tool documentation](tools/bash.md#command-policy-and-dedicated-tool-routing).
+`patterns` is a full replacement of the built-in default rules. To keep the defaults and only add or narrow rules, use `bashInterceptor.extraPatterns`: extras are checked before `patterns` and the first matching rule wins, so a narrow extra can override a broad default without copying the built-in list. An optional `policyKey` gives the block a stable identity used in the block message and in repeat-block escalation:
+
+```yaml
+bashInterceptor:
+  enabled: true
+  extraPatterns:
+    - pattern: '^\s*(cargo|rustc)\s'
+      tool: bash
+      policyKey: project:no-bare-rust
+      message: "Bare rust builds bypass the build system; use the project build entrypoint."
+```
+
+The named replacement tool must be available in the current session or the interceptor does not block the Bash call. For a detailed comparison of permission policy and dedicated-tool routing, including compound-command behavior, `extraPatterns` precedence, and ordering, see [the Bash tool documentation](tools/bash.md#command-policy-and-dedicated-tool-routing).
 
 ### Worked example: global vs. project
 
