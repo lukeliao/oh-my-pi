@@ -56,6 +56,28 @@ These files differ from upstream and may conflict on rebase:
 
 7. **`models.json`** (build artifact) → Discard on conflict, regenerate.
 
+## Hard lessons (2026-08-29, v18.1.2 merge)
+
+1. **`rebase --continue` 之后才会提交已 `git add` 的文件——但脚本里 python 修复失败时
+   `git add` 仍会执行**（用换行而非 `&&` 分隔时）。结果：含冲突标记的文件被静默 commit。
+   规则：解析冲突的 python/sql 修复必须与 `git add`、`git rebase --continue` 用 `&&` 链接，
+   失败即中止。
+2. **rebase 完成后必须全量 grep 冲突标记**：
+   `git grep -n "^<<<<<<< HEAD" HEAD -- packages/` —— v18.1.2 轮有 4 个文件的标记被
+   静默 commit（catalog 政策/compat/测试 + 前一轮的文件）。
+3. **catalog 冲突优先取上游**：v17.2.5 时代的 GLM/MiniMax/wafer/opencode-go 政策块引用的
+   helper（isMimoModelIdOrName、resolveWaferServerlessThinkingFormat）在上游 18.x 已被
+   KDL 规则系统（compat/rules/providers/*.kdl）取代——整块取上游，再核对 GLM 1M pin
+   是否仍由 generated-policies 保留（zhipu-coding-plan 用户依赖它）。
+4. **agents-md.ts 上游重构进了 helpers.loadStandaloneContextFiles（单文件名/调用）**：
+   我们的 OKF frontmatter + index.md 双文件发现重新接线 = 两次 helper 调用合并 +
+   attachFrontmatter（**必须 `content: body` 剥离 frontmatter**，漏剥会让
+   system-prompt-dedup 测试的 content 断言拿到带 frontmatter 的原文）。
+5. **测试失败先读 bun 的原始输出**（`-t <name>` + grep error/Received）——line number
+   会对不上号，靠断言的 Received/Expected 实值定位才是唯一可靠路径。
+
+## Procedure
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
