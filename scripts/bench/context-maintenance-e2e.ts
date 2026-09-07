@@ -113,7 +113,8 @@ async function chat(
 		throw new Error(`DeepSeek API ${res.status}: ${err.slice(0, 300)}`);
 	}
 	const data = (await res.json()) as any;
-	if (process.env.CM_DEBUG) console.error("[cm-debug] usage raw:", JSON.stringify(data.usage), "| choices:", data.choices?.length);
+	if (process.env.CM_DEBUG)
+		console.error("[cm-debug] usage raw:", JSON.stringify(data.usage), "| choices:", data.choices?.length);
 	const msg = data.choices?.[0]?.message ?? {};
 	return {
 		content: typeof msg.content === "string" ? msg.content : "",
@@ -160,7 +161,11 @@ function textBlock(text: string) {
 
 function buildFatSession(nonce: string): Msg[] {
 	const msgs: Msg[] = [
-		{ role: "user", content: textBlock(`Review every file in module ${nonce} one by one. Keep notes short.`), timestamp: Date.now() },
+		{
+			role: "user",
+			content: textBlock(`Review every file in module ${nonce} one by one. Keep notes short.`),
+			timestamp: Date.now(),
+		},
 	];
 	for (let i = 0; i < FAT_RESULTS; i++) {
 		const id = `c${String(i).padStart(2, "0")}`;
@@ -200,19 +205,33 @@ function toLlmMessages(msgs: Msg[]): any[] {
 	const out: any[] = [];
 	for (const m of msgs) {
 		if (m.role === "assistant") {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-			const calls = (m.content as any[]).filter((b) => b.type === "toolCall");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
+			const calls = (m.content as any[]).filter(b => b.type === "toolCall");
 			const msg: any = { role: "assistant", content: text || null };
 			// DeepSeek thinking mode: assistant turns must carry reasoning_content
 			// back (empty is accepted) or the next request 400s.
 			msg.reasoning_content = "";
-			if (calls.length) msg.tool_calls = calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.arguments) } }));
+			if (calls.length)
+				msg.tool_calls = calls.map(c => ({
+					id: c.id,
+					type: "function",
+					function: { name: c.name, arguments: JSON.stringify(c.arguments) },
+				}));
 			out.push(msg);
 		} else if (m.role === "toolResult") {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
 			out.push({ role: "tool", tool_call_id: m.toolCallId!, name: m.toolName ?? "read_file", content: text });
 		} else {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
 			out.push({ role: "user", content: text });
 		}
 	}
@@ -246,7 +265,9 @@ async function seed(dir: string, model: string) {
 		writeFileSync(join(dir, `messages-${arm}.json`), JSON.stringify(msgs, null, 1));
 		meta.nonces[arm] = nonce;
 		meta.seed_usage[arm] = u;
-		console.log(`seeded ${arm.padEnd(7)} prompt=${u.prompt_tokens} hit=${u.prompt_cache_hit_tokens ?? 0} miss=${u.prompt_cache_miss_tokens ?? 0}`);
+		console.log(
+			`seeded ${arm.padEnd(7)} prompt=${u.prompt_tokens} hit=${u.prompt_cache_hit_tokens ?? 0} miss=${u.prompt_cache_miss_tokens ?? 0}`,
+		);
 	}
 	writeFileSync(join(dir, "meta.json"), JSON.stringify(meta, null, 2));
 	console.log(`meta written to ${dir}/meta.json — run \`resume\` after DeepSeek cache TTL (~5 min)`);
@@ -276,13 +297,15 @@ async function resume(dir: string, model: string, pruneSpec?: string) {
 			const res = pruneToolOutputs(entries, pruneConfig);
 			pruned = res.prunedCount;
 			// entries were mutated in place; recover messages
-			const prunedMsgs = entries.map((e) => (e as any).message as Msg);
+			const prunedMsgs = entries.map(e => (e as any).message as Msg);
 			msgs.splice(0, msgs.length, ...prunedMsgs);
 		}
 		const q = "Which file did you review first? Reply with just the path.";
 		const r = await chat(key, model, [...toLlmMessages(msgs), { role: "user", content: q }], { maxTokens: 64 });
 		out[arm] = { ...r.usage, pruned };
-		console.log(`resume ${arm.padEnd(7)} idle=${(idleMs / 60000).toFixed(1)}m pruned=${pruned} prompt=${r.usage.prompt_tokens} hit=${r.usage.prompt_cache_hit_tokens ?? 0} miss=${r.usage.prompt_cache_miss_tokens ?? 0}`);
+		console.log(
+			`resume ${arm.padEnd(7)} idle=${(idleMs / 60000).toFixed(1)}m pruned=${pruned} prompt=${r.usage.prompt_tokens} hit=${r.usage.prompt_cache_hit_tokens ?? 0} miss=${r.usage.prompt_cache_miss_tokens ?? 0}`,
+		);
 	}
 	const c = out.control;
 	const p = out.pruned;
@@ -297,7 +320,9 @@ async function resume(dir: string, model: string, pruneSpec?: string) {
 			pruned_miss: p.prompt_cache_miss_tokens,
 			pct: +((1 - p.prompt_cache_miss_tokens / c.prompt_cache_miss_tokens) * 100).toFixed(1),
 		};
-		console.log(`\ncold-restart miss tokens: control=${c.prompt_cache_miss_tokens} pruned=${p.prompt_cache_miss_tokens} (${report.reduction.pct}% reduction)`);
+		console.log(
+			`\ncold-restart miss tokens: control=${c.prompt_cache_miss_tokens} pruned=${p.prompt_cache_miss_tokens} (${report.reduction.pct}% reduction)`,
+		);
 	}
 	writeFileSync(join(dir, `resume-${Date.now()}.json`), JSON.stringify(report, null, 2));
 }
@@ -322,13 +347,25 @@ async function comprehension(trials: number, model: string) {
 		const dir = join(tmpdir(), `cm-e2e-${Date.now()}-${t}`);
 		mkdirSync(dir, { recursive: true });
 		const secret = String(1000 + (Date.now() % 9000));
-		const content = `package cfg\n\n// retention floor, milliseconds\nconst cacheRetentionFloor = ${secret}\n` + "// padding line filler for prune eligibility\n".repeat(400);
+		const content =
+			`package cfg\n\n// retention floor, milliseconds\nconst cacheRetentionFloor = ${secret}\n` +
+			"// padding line filler for prune eligibility\n".repeat(400);
 		writeFileSync(join(dir, "config.go"), content);
 
 		const msgs: Msg[] = [
 			{ role: "user", content: textBlock("Read config.go and note its constants."), timestamp: Date.now() },
-			{ role: "assistant", content: [{ type: "toolCall", id: "r1", name: "read_file", arguments: { path: "config.go" } }], timestamp: Date.now() },
-			{ role: "toolResult", toolCallId: "r1", toolName: "read_file", content: textBlock(content), timestamp: Date.now() },
+			{
+				role: "assistant",
+				content: [{ type: "toolCall", id: "r1", name: "read_file", arguments: { path: "config.go" } }],
+				timestamp: Date.now(),
+			},
+			{
+				role: "toolResult",
+				toolCallId: "r1",
+				toolName: "read_file",
+				content: textBlock(content),
+				timestamp: Date.now(),
+			},
 			{ role: "assistant", content: textBlock("Noted the constants in config.go."), timestamp: Date.now() },
 		];
 		for (let i = 0; i < 4; i++) {
@@ -344,7 +381,7 @@ async function comprehension(trials: number, model: string) {
 			rmSync(dir, { recursive: true, force: true });
 			continue;
 		}
-		const prunedMsgs = entries.map((e) => (e as any).message as Msg);
+		const prunedMsgs = entries.map(e => (e as any).message as Msg);
 
 		// Two-stage tool loop: model may call read_file to recover the pruned content.
 		let reRead = false;
@@ -353,7 +390,11 @@ async function comprehension(trials: number, model: string) {
 		try {
 			const llm = toLlmMessages(prunedMsgs);
 			const q = "What is the exact numeric value of cacheRetentionFloor in config.go? Reply with just the number.";
-			let r = await chat(key, model, [...llm, { role: "user", content: q }], { maxTokens: 2048, tools: [READ_TOOL], toolChoice: "auto" });
+			let r = await chat(key, model, [...llm, { role: "user", content: q }], {
+				maxTokens: 2048,
+				tools: [READ_TOOL],
+				toolChoice: "auto",
+			});
 			let rounds = 0;
 			while (r.toolCalls.length && rounds < 3) {
 				for (const tc of r.toolCalls) {
@@ -366,11 +407,26 @@ async function comprehension(trials: number, model: string) {
 						} catch (e: any) {
 							body = `error: ${e.message}`;
 						}
-						llm.push({ role: "assistant", content: null, reasoning_content: "", tool_calls: [{ id: tc.id, type: "function", function: { name: tc.name, arguments: JSON.stringify(tc.arguments) } }] });
+						llm.push({
+							role: "assistant",
+							content: null,
+							reasoning_content: "",
+							tool_calls: [
+								{
+									id: tc.id,
+									type: "function",
+									function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+								},
+							],
+						});
 						llm.push({ role: "tool", tool_call_id: tc.id, name: tc.name, content: body });
 					}
 				}
-				r = await chat(key, model, [...llm, { role: "user", content: q }], { maxTokens: 2048, tools: [READ_TOOL], toolChoice: "auto" });
+				r = await chat(key, model, [...llm, { role: "user", content: q }], {
+					maxTokens: 2048,
+					tools: [READ_TOOL],
+					toolChoice: "auto",
+				});
 				rounds++;
 			}
 			if (r.content.includes(secret)) answered = true;
@@ -379,7 +435,9 @@ async function comprehension(trials: number, model: string) {
 		}
 		const ok = !err && reRead && answered;
 		if (ok) pass++;
-		console.log(`trial ${t}: prune_fired=${st.prunedCount} re_read=${reRead} answered=${answered}${err ? ` err=${err.slice(0, 120)}` : ""}`);
+		console.log(
+			`trial ${t}: prune_fired=${st.prunedCount} re_read=${reRead} answered=${answered}${err ? ` err=${err.slice(0, 120)}` : ""}`,
+		);
 		rmSync(dir, { recursive: true, force: true });
 	}
 	console.log(`\ncomprehension: ${pass}/${trials} passed`);
@@ -406,6 +464,8 @@ switch (cmd) {
 		await comprehension(trials, model);
 		break;
 	default:
-		console.error("usage: context-maintenance-e2e.ts <seed|resume|comprehension> [--dir <dir>] [--model <id>] [--trials N] [--prune protectTokens:minimumSavings]");
+		console.error(
+			"usage: context-maintenance-e2e.ts <seed|resume|comprehension> [--dir <dir>] [--model <id>] [--trials N] [--prune protectTokens:minimumSavings]",
+		);
 		process.exit(1);
 }

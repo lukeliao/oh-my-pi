@@ -87,16 +87,30 @@ function toLlmMessages(msgs: Msg[]): any[] {
 	const out: any[] = [];
 	for (const m of msgs) {
 		if (m.role === "assistant") {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-			const calls = (m.content as any[]).filter((b) => b.type === "toolCall");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
+			const calls = (m.content as any[]).filter(b => b.type === "toolCall");
 			const msg: any = { role: "assistant", content: text || null, reasoning_content: "" };
-			if (calls.length) msg.tool_calls = calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: JSON.stringify(c.arguments) } }));
+			if (calls.length)
+				msg.tool_calls = calls.map(c => ({
+					id: c.id,
+					type: "function",
+					function: { name: c.name, arguments: JSON.stringify(c.arguments) },
+				}));
 			out.push(msg);
 		} else if (m.role === "toolResult") {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
 			out.push({ role: "tool", tool_call_id: m.toolCallId!, name: m.toolName ?? "read_file", content: text });
 		} else {
-			const text = (m.content as any[]).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+			const text = (m.content as any[])
+				.filter(b => b.type === "text")
+				.map(b => b.text)
+				.join("\n");
 			out.push({ role: "user", content: text });
 		}
 	}
@@ -128,13 +142,29 @@ interface TrialResult {
 }
 
 function buildSession(nonce: string): Msg[] {
-	const msgs: Msg[] = [{ role: "user", content: textBlock(`Review every file in module ${nonce} one by one. Keep notes short.`), timestamp: Date.now() }];
+	const msgs: Msg[] = [
+		{
+			role: "user",
+			content: textBlock(`Review every file in module ${nonce} one by one. Keep notes short.`),
+			timestamp: Date.now(),
+		},
+	];
 	const addResults = (from: number, to: number) => {
 		for (let i = from; i < to; i++) {
 			const id = `c${String(i).padStart(2, "0")}`;
 			const name = `src/file${String(i).padStart(2, "0")}.go`;
-			msgs.push({ role: "assistant", content: [{ type: "toolCall", id, name: "read_file", arguments: { path: name } }], timestamp: Date.now() });
-			msgs.push({ role: "toolResult", toolCallId: id, toolName: "read_file", content: textBlock(fakeGoFile(nonce, i, 12_000)), timestamp: Date.now() });
+			msgs.push({
+				role: "assistant",
+				content: [{ type: "toolCall", id, name: "read_file", arguments: { path: name } }],
+				timestamp: Date.now(),
+			});
+			msgs.push({
+				role: "toolResult",
+				toolCallId: id,
+				toolName: "read_file",
+				content: textBlock(fakeGoFile(nonce, i, 12_000)),
+				timestamp: Date.now(),
+			});
 			msgs.push({ role: "assistant", content: textBlock(`Reviewed ${name}.`), timestamp: Date.now() });
 		}
 	};
@@ -146,7 +176,10 @@ function buildSession(nonce: string): Msg[] {
 }
 
 function messageText(m: Msg): string {
-	return (m.content as any[]).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+	return (m.content as any[])
+		.filter((b: any) => b.type === "text")
+		.map((b: any) => b.text)
+		.join("\n");
 }
 
 function checkAnswer(content: string): { ok: boolean; details: string[] } {
@@ -173,22 +206,27 @@ async function runTrial(t: number, key: string, model: string, settings: Compact
 		prep = prepareCompaction(entries, { ...settings, keepRecentTokens });
 		if (!prep) break;
 		const folded = [...prep.messagesToSummarize, ...prep.turnPrefixMessages];
-		const inFolded = folded.some((m) => messageText(m as Msg).includes(CONSTRAINT_MARKER));
-		const inRecent = prep.recentMessages.some((m) => messageText(m as Msg).includes(CONSTRAINT_MARKER));
+		const inFolded = folded.some(m => messageText(m as Msg).includes(CONSTRAINT_MARKER));
+		const inRecent = prep.recentMessages.some(m => messageText(m as Msg).includes(CONSTRAINT_MARKER));
 		if (inFolded && !inRecent) break;
 		keepRecentTokens = Math.floor(keepRecentTokens / 2);
 	}
 	if (!prep) throw new Error("prepareCompaction returned undefined");
 	const foldedAll = [...prep.messagesToSummarize, ...prep.turnPrefixMessages];
-	const constraintInFold = foldedAll.some((m) => messageText(m as Msg).includes(CONSTRAINT_MARKER));
-	const constraintInRecent = prep.recentMessages.some((m) => messageText(m as Msg).includes(CONSTRAINT_MARKER));
-	console.log(`trial ${t}: keepRecentTokens=${keepRecentTokens} fold_msgs=${prep.messagesToSummarize.length} turn_prefix=${prep.turnPrefixMessages.length} recent_msgs=${prep.recentMessages.length} constraint_in_folded=${constraintInFold} constraint_in_recent=${constraintInRecent}`);
+	const constraintInFold = foldedAll.some(m => messageText(m as Msg).includes(CONSTRAINT_MARKER));
+	const constraintInRecent = prep.recentMessages.some(m => messageText(m as Msg).includes(CONSTRAINT_MARKER));
+	console.log(
+		`trial ${t}: keepRecentTokens=${keepRecentTokens} fold_msgs=${prep.messagesToSummarize.length} turn_prefix=${prep.turnPrefixMessages.length} recent_msgs=${prep.recentMessages.length} constraint_in_folded=${constraintInFold} constraint_in_recent=${constraintInRecent}`,
+	);
 	if (!constraintInFold || constraintInRecent) throw new Error("constraint turn not cleanly inside folded content");
 
 	// One compaction, both arms share the summary.
 	const completeImpl = async (_model: any, ctx: any, options: any) => {
 		const msgsIn: any[] = (ctx.messages ?? []).map((m: any) => {
-			const text = (m.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+			const text = (m.content ?? [])
+				.filter((b: any) => b.type === "text")
+				.map((b: any) => b.text)
+				.join("\n");
 			return { role: m.role === "developer" ? "system" : m.role, content: text };
 		});
 		const res = await fetch(`${BASE_URL}/chat/completions`, {
@@ -219,27 +257,40 @@ async function runTrial(t: number, key: string, model: string, settings: Compact
 		thinkingLevel: "off",
 	});
 	const summary = result.summary;
-	console.log(`trial ${t}: summary=${summary.length} chars; contains constraint marker=${summary.includes(CONSTRAINT_MARKER)}; mentions cargo=${/cargo build/i.test(summary)}`);
+	console.log(
+		`trial ${t}: summary=${summary.length} chars; contains constraint marker=${summary.includes(CONSTRAINT_MARKER)}; mentions cargo=${/cargo build/i.test(summary)}`,
+	);
 
 	// Control context: summary + recent tail (current omp behavior).
 	const controlMsgs: Msg[] = [
-		{ role: "user", content: textBlock(`<compaction-summary>\n${summary}\n</compaction-summary>`), timestamp: Date.now() },
-		...prep.recentMessages as unknown as Msg[],
+		{
+			role: "user",
+			content: textBlock(`<compaction-summary>\n${summary}\n</compaction-summary>`),
+			timestamp: Date.now(),
+		},
+		...(prep.recentMessages as unknown as Msg[]),
 	];
 	// Treatment context: summary + pinned constraint turn verbatim + recent tail.
-	const pinned = msgs.find((m) => m.role === "user" && messageText(m).includes(CONSTRAINT_MARKER))!;
+	const pinned = msgs.find(m => m.role === "user" && messageText(m).includes(CONSTRAINT_MARKER))!;
 	const treatmentMsgs: Msg[] = [
-		{ role: "user", content: textBlock(`<compaction-summary>\n${summary}\n</compaction-summary>`), timestamp: Date.now() },
+		{
+			role: "user",
+			content: textBlock(`<compaction-summary>\n${summary}\n</compaction-summary>`),
+			timestamp: Date.now(),
+		},
 		pinned,
-		...prep.recentMessages as unknown as Msg[],
+		...(prep.recentMessages as unknown as Msg[]),
 	];
 
-	const q = "The user stated a hard constraint early in the session. What is the exact rule about build commands, and what is the passphrase? Reply with both verbatim.";
+	const q =
+		"The user stated a hard constraint early in the session. What is the exact rule about build commands, and what is the passphrase? Reply with both verbatim.";
 	const c = await chat(key, model, [...toLlmMessages(controlMsgs), { role: "user", content: q }]);
 	const tRes = await chat(key, model, [...toLlmMessages(treatmentMsgs), { role: "user", content: q }]);
 	const cCheck = checkAnswer(c.content);
 	const tCheck = checkAnswer(tRes.content);
-	console.log(`trial ${t}: control ok=${cCheck.ok} (${cCheck.details.join(",") || "all"}) | treatment ok=${tCheck.ok} (${tCheck.details.join(",") || "all"})`);
+	console.log(
+		`trial ${t}: control ok=${cCheck.ok} (${cCheck.details.join(",") || "all"}) | treatment ok=${tCheck.ok} (${tCheck.details.join(",") || "all"})`,
+	);
 	return { control: cCheck.ok, treatment: tCheck.ok, controlHit: c.content.slice(0, 120) };
 }
 
@@ -251,8 +302,18 @@ async function runDriftTrial(t: number, rounds: number, key: string, model: stri
 		for (let i = 0; i < 10; i++) {
 			const id = `d${r}_${String(i).padStart(2, "0")}`;
 			const name = `src/new${r}_${String(i).padStart(2, "0")}.go`;
-			out.push({ role: "assistant", content: [{ type: "toolCall", id, name: "read_file", arguments: { path: name } }], timestamp: Date.now() });
-			out.push({ role: "toolResult", toolCallId: id, toolName: "read_file", content: textBlock(fakeGoFile(`${nonce}_r${r}`, i, 12_000)), timestamp: Date.now() });
+			out.push({
+				role: "assistant",
+				content: [{ type: "toolCall", id, name: "read_file", arguments: { path: name } }],
+				timestamp: Date.now(),
+			});
+			out.push({
+				role: "toolResult",
+				toolCallId: id,
+				toolName: "read_file",
+				content: textBlock(fakeGoFile(`${nonce}_r${r}`, i, 12_000)),
+				timestamp: Date.now(),
+			});
 			out.push({ role: "assistant", content: textBlock(`Reviewed ${name}.`), timestamp: Date.now() });
 		}
 		return out;
@@ -260,7 +321,10 @@ async function runDriftTrial(t: number, rounds: number, key: string, model: stri
 
 	const completeImpl = async (_model: any, ctx: any, options: any) => {
 		const msgsIn: any[] = (ctx.messages ?? []).map((m: any) => {
-			const text = (m.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+			const text = (m.content ?? [])
+				.filter((b: any) => b.type === "text")
+				.map((b: any) => b.text)
+				.join("\n");
 			return { role: m.role === "developer" ? "system" : m.role, content: text };
 		});
 		const res = await fetch(`${BASE_URL}/chat/completions`, {
@@ -276,16 +340,32 @@ async function runDriftTrial(t: number, rounds: number, key: string, model: stri
 		const content = typeof data.choices?.[0]?.message?.content === "string" ? data.choices[0].message.content : "";
 		return { role: "assistant", content: [{ type: "text", text: content }], timestamp: Date.now() };
 	};
-	const fakeModel = { id: `deepseek/${model}`, provider: "deepseek", api: "openai-completions", contextWindow: 1_000_000, requestModelId: model, maxTokens: 384_000 } as any;
+	const fakeModel = {
+		id: `deepseek/${model}`,
+		provider: "deepseek",
+		api: "openai-completions",
+		contextWindow: 1_000_000,
+		requestModelId: model,
+		maxTokens: 384_000,
+	} as any;
 
 	let prevSummary: string | undefined;
-	let prevMarkers: boolean[] = [];
+	const prevMarkers: boolean[] = [];
 	for (let r = 0; r < rounds; r++) {
 		const entries: SessionEntry[] =
 			r === 0
 				? toEntries(msgs)
 				: [
-						{ type: "compaction", id: `ckpt-${r}`, parentId: null, timestamp: new Date().toISOString(), summary: prevSummary!, shortSummary: undefined, firstKeptEntryId: "e0", tokensBefore: 0 } as any,
+						{
+							type: "compaction",
+							id: `ckpt-${r}`,
+							parentId: null,
+							timestamp: new Date().toISOString(),
+							summary: prevSummary!,
+							shortSummary: undefined,
+							firstKeptEntryId: "e0",
+							tokensBefore: 0,
+						} as any,
 						...toEntries(newTraffic(r)),
 					];
 		const prep = prepareCompaction(entries, settings);
@@ -293,14 +373,21 @@ async function runDriftTrial(t: number, rounds: number, key: string, model: stri
 		const res = await compact(prep, fakeModel, key, undefined, undefined, { completeImpl, thinkingLevel: "off" });
 		prevSummary = res.summary;
 		prevMarkers.push(res.summary.includes(CONSTRAINT_MARKER));
-		console.log(`trial ${t} round ${r}: summary=${res.summary.length} chars marker=${res.summary.includes(CONSTRAINT_MARKER)} cargo=${/cargo build/i.test(res.summary)}`);
+		console.log(
+			`trial ${t} round ${r}: summary=${res.summary.length} chars marker=${res.summary.includes(CONSTRAINT_MARKER)} cargo=${/cargo build/i.test(res.summary)}`,
+		);
 	}
 
 	const finalMsgs: Msg[] = [
-		{ role: "user", content: textBlock(`<compaction-summary>\n${prevSummary}\n</compaction-summary>`), timestamp: Date.now() },
-		...toEntries(newTraffic(rounds)).map((e) => e.message as unknown as Msg),
+		{
+			role: "user",
+			content: textBlock(`<compaction-summary>\n${prevSummary}\n</compaction-summary>`),
+			timestamp: Date.now(),
+		},
+		...toEntries(newTraffic(rounds)).map(e => e.message as unknown as Msg),
 	];
-	const q = "The user stated a hard constraint early in the session. What is the exact rule about build commands, and what is the passphrase? Reply with both verbatim.";
+	const q =
+		"The user stated a hard constraint early in the session. What is the exact rule about build commands, and what is the passphrase? Reply with both verbatim.";
 	const c = await chat(key, model, [...toLlmMessages(finalMsgs), { role: "user", content: q }]);
 	const cCheck = checkAnswer(c.content);
 	console.log(`trial ${t}: rounds=${rounds} control ok=${cCheck.ok} (${cCheck.details.join(",") || "all"})`);
@@ -325,11 +412,13 @@ async function main() {
 		for (let t = 0; t < trials; t++) {
 			results.push(await runDriftTrial(t, rounds, key, model, settings));
 		}
-		const controlPass = results.filter((r) => r.control).length;
-		const markerSurvived = results.filter((r) => r.markerSurvived).length;
-		console.log(`\ndrift fidelity over ${rounds} rounds: control(summary-only)=${controlPass}/${trials} marker_survived_every_round=${markerSurvived}/${trials}`);
+		const controlPass = results.filter(r => r.control).length;
+		const markerSurvived = results.filter(r => r.markerSurvived).length;
+		console.log(
+			`\ndrift fidelity over ${rounds} rounds: control(summary-only)=${controlPass}/${trials} marker_survived_every_round=${markerSurvived}/${trials}`,
+		);
 		console.log(`control failures (samples):`);
-		for (const r of results.filter((r) => !r.control)) console.log("  -", JSON.stringify(r.controlHit).slice(0, 160));
+		for (const r of results.filter(r => !r.control)) console.log("  -", JSON.stringify(r.controlHit).slice(0, 160));
 		return;
 	}
 	const results: TrialResult[] = [];
@@ -337,11 +426,13 @@ async function main() {
 		const r = await runTrial(t, key, model, settings);
 		results.push(r);
 	}
-	const controlPass = results.filter((r) => r.control).length;
-	const treatmentPass = results.filter((r) => r.treatment).length;
-	console.log(`\nconstraint fidelity: control(summary-only)=${controlPass}/${trials}  treatment(pinned)=${treatmentPass}/${trials}`);
+	const controlPass = results.filter(r => r.control).length;
+	const treatmentPass = results.filter(r => r.treatment).length;
+	console.log(
+		`\nconstraint fidelity: control(summary-only)=${controlPass}/${trials}  treatment(pinned)=${treatmentPass}/${trials}`,
+	);
 	console.log(`control failures (samples):`);
-	for (const r of results.filter((r) => !r.control)) console.log("  -", JSON.stringify(r.controlHit).slice(0, 160));
+	for (const r of results.filter(r => !r.control)) console.log("  -", JSON.stringify(r.controlHit).slice(0, 160));
 	process.exit(treatmentPass === trials ? 0 : controlPass === trials ? 0 : 1);
 }
 
