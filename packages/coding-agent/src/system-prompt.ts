@@ -425,7 +425,7 @@ function buildBacklinks(files: ProjectContextFile[]): Record<string, string[]> {
  *
  * @internal Exported for testing.
  */
- export function dedupeContainedContextFiles(
+export function dedupeContainedContextFiles(
 	contextFiles: Array<{ path: string; content: string; depth?: number }>,
 ): Array<{ path: string; content: string; depth?: number }> {
 	// Sort by depth descending: higher depth (farther from cwd, less
@@ -950,8 +950,12 @@ export async function buildSystemPrompt(options: BuildSystemPromptOptions = {}):
 		resolvedCustomPrompt: undefined as string | undefined,
 		resolvedAppendPrompt: undefined as string | undefined,
 		systemPromptCustomization: null as string | null,
-		contextFiles: dedupeContainedContextFiles(
-			excludeAgentsMd ? withoutAgentsMd(providedContextFiles ?? []) : (providedContextFiles ?? []),
+		contextFiles: sortByStatusPriority(
+			pruneIndexedContextFiles(
+				dedupeContainedContextFiles(
+					excludeAgentsMd ? withoutAgentsMd(providedContextFiles ?? []) : (providedContextFiles ?? []),
+				),
+			),
 		),
 		skills: providedSkills ?? ([] as Skill[]),
 		workspaceTree: {

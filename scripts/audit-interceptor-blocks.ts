@@ -89,7 +89,9 @@ for (const [file, per] of sessionRuleCounts) {
 	for (const [rule, n] of per) {
 		if (n >= 2) {
 			repeatSessions++;
-			console.log(`  ${path.basename(path.dirname(file)).slice(0, 19)} ${path.basename(file).slice(0, 24)} ${rule} x${n}`);
+			console.log(
+				`  ${path.basename(path.dirname(file)).slice(0, 19)} ${path.basename(file).slice(0, 24)} ${rule} x${n}`,
+			);
 		}
 	}
 }
