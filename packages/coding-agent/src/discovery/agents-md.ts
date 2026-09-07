@@ -12,6 +12,7 @@
  */
 import { registerProvider } from "../capability";
 import { type ContextFile, type ContextFileFrontmatter, contextFileCapability } from "../capability/context-file";
+import type { LoadContext, LoadResult } from "../capability/types";
 import { loadStandaloneContextFiles } from "./helpers";
 
 const PROVIDER_ID = "agents-md";
@@ -126,7 +127,7 @@ export async function loadAgentsMd(ctx: LoadContext): Promise<LoadResult<Context
 		loadStandaloneContextFiles(ctx, PROVIDER_ID, "index.md"),
 	]);
 	const items = [...agents.items, ...index.items].map(attachFrontmatter);
-	const warnings = [...agents.warnings, ...index.warnings];
+	const warnings = [...(agents.warnings ?? []), ...(index.warnings ?? [])];
 	return { items, warnings };
 }
 
