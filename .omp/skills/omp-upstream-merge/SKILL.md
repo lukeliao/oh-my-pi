@@ -76,7 +76,27 @@ These files differ from upstream and may conflict on rebase:
 5. **测试失败先读 bun 的原始输出**（`-t <name>` + grep error/Received）——line number
    会对不上号，靠断言的 Received/Expected 实值定位才是唯一可靠路径。
 
-## Procedure
+## Hard lessons (2026-09-07, v18.1.13 merge)
+
+6. **线性 rebase 会静默丢弃经 merge commit 进入 fork 的文件**：designer/librarian
+   agent `.md` 与 `agents.ts` 条目历史上来自 merge commit（27f53cadf5），rebase 只重放
+   非 merge commit → 文件凭空消失且无冲突提示。规则：rebase 后核对
+   `packages/coding-agent/src/prompts/agents/` 全部 9 个文件 + agents.ts 的 import 与
+   EMBEDDED_AGENT_DEFS 完整性；缺失时从 `ORIG_HEAD` 恢复（scout→designer→reviewer→
+   security-reviewer→librarian→theorist），双侧扩列表（如 capability 测试）取并集。
+7. **无冲突 ≠ 类型正确：rebase 后必须跑 `bun run check:ts`（需先 `bun install`）**。
+   自动合并可产出语法合法但语义坏的杂合体——本轮 agents-md.ts 缺
+   `LoadContext/LoadResult` import + warnings 可选展开、generated-policies.ts 残留
+   v17.2.5 旧布局块（parseKnownModel/applyAnthropicCatalogPolicy 等，v18 已由 KDL
+   取代；deepseek xhigh→high 由 deepseek.kdl 覆盖，该自定义块冗余可删）。bun test
+   不做类型检查，抓不住这些。
+8. **发布通道**：本机 SSH 到 GitHub 大流量被限速（377MiB 推 15 分钟仅 1.4MB），小
+   commit（~30KB）40 秒直推无碍。大 payload 走 cnp6s 中继：rsync 整个 `.git`（LAN
+   ~100MB/s）→ cnp6s `git --git-dir=... -c core.hooksPath=/dev/null push`。注意：
+   空 bare 仓中继会拒 shallow 发送方（"shallow update not allowed"），GitHub 不会拒
+   （shallow 根都在其现有 tip 之下）；cnp6s 无 git-lfs，bypass hooks 前先 `ls-tree`
+   比对 LFS pointer 未变；被 timeout 杀掉的 push 可能已被服务端完成，重推前先
+   `git ls-remote` 确认。
 
 ## Procedure
 
