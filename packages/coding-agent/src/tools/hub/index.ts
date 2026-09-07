@@ -125,7 +125,9 @@ const hubSchema = type({
 	"signal?": type("'SIGINT' | 'SIGTERM' | 'SIGHUP' | 'SIGQUIT' | 'SIGKILL'").describe(
 		"send with name: process-tree signal",
 	),
-	"timeout?": type("number > 0 & number <= 3600").describe("logs/stop/wait with name: max seconds; default 30 (stop: 5)"),
+	"timeout?": type("number > 0 & number <= 3600").describe(
+		"logs/stop/wait with name: max seconds; default 30 (stop: 5)",
+	),
 });
 
 type HubParams = typeof hubSchema.infer;
