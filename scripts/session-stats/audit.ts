@@ -67,21 +67,48 @@ const TOOL_REGISTRY = new Set<string>([
 	...BUILTIN_TOOL_NAMES,
 	...HIDDEN_TOOL_NAMES,
 	// custom semble tools
-	"semble_digest", "semble_deps", "semble_encode", "semble_find_pattern",
-	"semble_find_related", "semble_impact", "semble_search", "semble_tree",
+	"semble_digest",
+	"semble_deps",
+	"semble_encode",
+	"semble_find_pattern",
+	"semble_find_related",
+	"semble_impact",
+	"semble_search",
+	"semble_tree",
 	// advisor, issue reporting, OKF tools
-	"advise", "report_tool_issue", "okf_add", "okf_query", "okf_status", "okf_validate",
+	"advise",
+	"report_tool_issue",
+	"okf_add",
+	"okf_query",
+	"okf_status",
+	"okf_validate",
 	// currently-mounted MCP servers (mcp__<server>_<tool>; current prefix mcp__codebase_memory_mcp_)
-	"mcp__codebase_memory_mcp_delete_project", "mcp__codebase_memory_mcp_detect_changes",
-	"mcp__codebase_memory_mcp_get_architecture", "mcp__codebase_memory_mcp_get_code_snippet",
-	"mcp__codebase_memory_mcp_get_graph_schema", "mcp__codebase_memory_mcp_index_repository",
-	"mcp__codebase_memory_mcp_index_status", "mcp__codebase_memory_mcp_ingest_traces",
-	"mcp__codebase_memory_mcp_list_projects", "mcp__codebase_memory_mcp_manage_adr",
-	"mcp__codebase_memory_mcp_query_graph", "mcp__codebase_memory_mcp_search_code",
-	"mcp__codebase_memory_mcp_search_graph", "mcp__codebase_memory_mcp_trace_path",
-	"mcp__claw_bash", "mcp__claw_ls", "mcp__claw_machines", "mcp__minimax_web_search",
+	"mcp__codebase_memory_mcp_delete_project",
+	"mcp__codebase_memory_mcp_detect_changes",
+	"mcp__codebase_memory_mcp_get_architecture",
+	"mcp__codebase_memory_mcp_get_code_snippet",
+	"mcp__codebase_memory_mcp_get_graph_schema",
+	"mcp__codebase_memory_mcp_index_repository",
+	"mcp__codebase_memory_mcp_index_status",
+	"mcp__codebase_memory_mcp_ingest_traces",
+	"mcp__codebase_memory_mcp_list_projects",
+	"mcp__codebase_memory_mcp_manage_adr",
+	"mcp__codebase_memory_mcp_query_graph",
+	"mcp__codebase_memory_mcp_search_code",
+	"mcp__codebase_memory_mcp_search_graph",
+	"mcp__codebase_memory_mcp_trace_path",
+	"mcp__claw_bash",
+	"mcp__claw_ls",
+	"mcp__claw_machines",
+	"mcp__minimax_web_search",
 	// custom/extension tools not in builtin-names
-	"generate_image", "tts", "vibe_kill", "vibe_list", "vibe_send", "vibe_spawn", "vibe_wait",
+	"generate_image",
+	"tts",
+	"vibe_kill",
+	"vibe_list",
+	"vibe_send",
+	"vibe_spawn",
+	"vibe_wait",
 ]);
 
 // --------------------------------------------------------------------------
@@ -1239,12 +1266,12 @@ function printScanReport(res: AuditResult): void {
 	// so the diff reflects the current surface; anything still unregistered
 	// after normalization is reported separately as observed-legacy.
 	const observed = new Set([...tools.keys()].map(normalizeToolName));
-	const neverCalled = [...TOOL_REGISTRY].filter((t) => !observed.has(t)).sort();
+	const neverCalled = [...TOOL_REGISTRY].filter(t => !observed.has(t)).sort();
 	console.log(
 		`\ntools never called in window (registry diff, ${neverCalled.length}/${TOOL_REGISTRY.size} registered never observed):`,
 	);
 	console.log(`  ${neverCalled.join(", ") || "(none)"}`);
-	const observedLegacy = [...observed].filter((t) => !TOOL_REGISTRY.has(t)).sort();
+	const observedLegacy = [...observed].filter(t => !TOOL_REGISTRY.has(t)).sort();
 	if (observedLegacy.length) {
 		console.log(
 			`  [observed-legacy (historical names/prefixes, NOT registered today): ${observedLegacy.join(", ")}]`,

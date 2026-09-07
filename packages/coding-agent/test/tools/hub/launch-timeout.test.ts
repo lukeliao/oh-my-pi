@@ -27,7 +27,11 @@ function fakeClient(handler: (op: DaemonOperation) => DaemonRpcResult | Promise<
 
 const SESSION = { cwd: process.cwd() } as unknown as ToolSession;
 
-function daemonSnapshot(name: string, state: DaemonSnapshot["state"], extra: Partial<DaemonSnapshot> = {}): DaemonSnapshot {
+function daemonSnapshot(
+	name: string,
+	state: DaemonSnapshot["state"],
+	extra: Partial<DaemonSnapshot> = {},
+): DaemonSnapshot {
 	return {
 		name,
 		id: `${name}-id`,
@@ -124,7 +128,8 @@ describe("hub launch timeout resolution", () => {
 });
 
 describe("hub start failure output tail", () => {
-	const traceback = "Traceback (most recent call last):\n  File \"collect.py\", line 12, in <module>\nRuntimeError: boom";
+	const traceback =
+		'Traceback (most recent call last):\n  File "collect.py", line 12, in <module>\nRuntimeError: boom';
 
 	it("appends the captured output tail when a start exits before readiness", async () => {
 		const calls: DaemonOperation[] = [];
