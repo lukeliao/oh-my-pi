@@ -43,7 +43,16 @@ describe("task agent capability descriptions", () => {
 	it("ships every bundled agent without prewalk; hand-off is opt-in via task.agentPrewalk", () => {
 		const agents = loadBundledAgents();
 
-		for (const name of ["task", "scout", "sonic", "reviewer", "security-reviewer", "designer", "librarian", "theorist"]) {
+		for (const name of [
+			"task",
+			"scout",
+			"sonic",
+			"reviewer",
+			"security-reviewer",
+			"designer",
+			"librarian",
+			"theorist",
+		]) {
 			expect(agentByName(agents, name).prewalk).toBeUndefined();
 		}
 	});
