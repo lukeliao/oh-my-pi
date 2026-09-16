@@ -73,7 +73,7 @@ const hubSchema = type({
 	"from?": type("string").describe("wait: only accept a message from this agent id"),
 	"ids?": type("string[]").describe("wait: job ids to watch (omit = all running jobs); cancel: job ids to kill"),
 	"timeoutMs?": type("number").describe(
-		"messaging/job waits: timeout in milliseconds (0 waits indefinitely); process waits use `timeout` (seconds) — a stray `timeoutMs` is converted",
+		"process ops only: milliseconds, honored as a fallback when `timeout` (seconds) is unset (0 = absent). Messaging/job waits use the adaptive window and ignore this field",
 	),
 	"peek?": type("boolean").describe("inbox: list messages without consuming them"),
 	"status?": type("'running' | 'idle' | 'parked'").describe("list: filter by status; omit for running+idle"),
