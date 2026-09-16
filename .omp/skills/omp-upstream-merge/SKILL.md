@@ -9,10 +9,10 @@ Standard procedure for pulling upstream `can1357/oh-my-pi` into our `lukeliao/oh
 
 ## Repo Layout
 
-| Remote | URL | Role |
-|--------|-----|------|
+| Remote   | URL                                       | Role     |
+| -------- | ----------------------------------------- | -------- |
 | `origin` | `https://github.com/can1357/oh-my-pi.git` | Upstream |
-| `liao` | `git@github.com:lukeliao/oh-my-pi.git` | Our fork |
+| `liao`   | `git@github.com:lukeliao/oh-my-pi.git`    | Our fork |
 
 Worktree: `~/workspace/act_ai_product/agents_harness/oh-my-pi`
 
@@ -20,21 +20,21 @@ Worktree: `~/workspace/act_ai_product/agents_harness/oh-my-pi`
 
 These files differ from upstream and may conflict on rebase:
 
-| File | What we changed |
-|------|----------------|
-| `AGENTS.md` | Entirely custom — always keep `--theirs` (our version) in conflicts |
-| `packages/coding-agent/src/system-prompt.ts` | OKF frontmatter + context rendering. Conflicts common in `buildSystemPrompt`, `prepDefaults`, `Promise.all` block |
-| `packages/coding-agent/src/capability/context-file.ts` | Added `status`, `milestone`, `validation`, `decision_level` frontmatter fields |
-| `packages/coding-agent/src/discovery/agents-md.ts` | Parsing for the 4 OKF frontmatter fields |
-| `packages/coding-agent/src/prompts/system/custom-system-prompt.md` | OKF field attributes in `<file>` tag + `<okf-wiki-protocol>` block |
-| `packages/coding-agent/src/prompts/system/project-prompt.md` | Same OKF additions as custom-system-prompt |
-| `packages/coding-agent/test/system-prompt-dedup.test.ts` | OKF frontmatter test coverage |
-| `scripts/build-semble-omp-package.ts` | omp packaging: builds `semble_rs`, copies `.omp/tools` + model, generates wrapper with `PI_CODING_AGENT_DIR=~/.omp/agent` |
-| `scripts/semble-benchmark.ts` | Model2Vec benchmark script |
-| `.omp/tools/semble-rs/index.ts` | 8 custom tools (`semble_*`; `semble_plan` removed 98b49860e3) |
-| `.omp/tools/semble-rs/index.test.ts` | Custom tool tests |
-| `.omp/skills/omp-packaging/SKILL.md` | Build/deploy skill |
-| `docs/semble-benchmark-results.md` | Benchmark results |
+| File                                                               | What we changed                                                                                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTS.md`                                                        | Entirely custom — always keep `--theirs` (our version) in conflicts                                                       |
+| `packages/coding-agent/src/system-prompt.ts`                       | OKF frontmatter + context rendering. Conflicts common in `buildSystemPrompt`, `prepDefaults`, `Promise.all` block         |
+| `packages/coding-agent/src/capability/context-file.ts`             | Added `status`, `milestone`, `validation`, `decision_level` frontmatter fields                                            |
+| `packages/coding-agent/src/discovery/agents-md.ts`                 | Parsing for the 4 OKF frontmatter fields                                                                                  |
+| `packages/coding-agent/src/prompts/system/custom-system-prompt.md` | OKF field attributes in `<file>` tag + `<okf-wiki-protocol>` block                                                        |
+| `packages/coding-agent/src/prompts/system/project-prompt.md`       | Same OKF additions as custom-system-prompt                                                                                |
+| `packages/coding-agent/test/system-prompt-dedup.test.ts`           | OKF frontmatter test coverage                                                                                             |
+| `scripts/build-semble-omp-package.ts`                              | omp packaging: builds `semble_rs`, copies `.omp/tools` + model, generates wrapper with `PI_CODING_AGENT_DIR=~/.omp/agent` |
+| `scripts/semble-benchmark.ts`                                      | Model2Vec benchmark script                                                                                                |
+| `.omp/tools/semble-rs/index.ts`                                    | 8 custom tools (`semble_*`; `semble_plan` removed 98b49860e3)                                                             |
+| `.omp/tools/semble-rs/index.test.ts`                               | Custom tool tests                                                                                                         |
+| `.omp/skills/omp-packaging/SKILL.md`                               | Build/deploy skill                                                                                                        |
+| `docs/semble-benchmark-results.md`                                 | Benchmark results                                                                                                         |
 
 ## Conflict resolution rules
 
@@ -98,6 +98,32 @@ These files differ from upstream and may conflict on rebase:
    比对 LFS pointer 未变；被 timeout 杀掉的 push 可能已被服务端完成，重推前先
    `git ls-remote` 确认。
 
+## Hard lessons (2026-09-12, v18.2.1 merge)
+
+9. **native 双变体是 embed 的硬门槛**：`build:native` 只产 host 变体（本机 AVX2 →
+   modern），而 embed 校验 modern+baseline 两个 `.node` 的版本哨兵
+   （`__piNativesV18_2_1`）——baseline 陈旧会 build 失败。baseline 构建路径：
+   `bun packages/node_modules/@napi-rs/cli/dist/cli.js build --manifest-path
+crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
+--platform --no-js -o <dir> --profile local` + `RUSTFLAGS="-C target-cpu=x86-64-v2"`，
+   产物改名 `pi_natives.linux-x64-baseline.node` 放回 native/。
+10. **rustup 组件"installed"但二进制缺失**：重装 dated nightly 后 rustfmt/clippy
+    可能标记 installed 却没有 cargo-fmt/cargo-clippy（半安装状态，报 "not
+    applicable"）。修法：`rustup component remove <c> --toolchain <tc>` + `add` 强制
+    重新解包。症状：check:rs 在 fmt/clippy 步骤报 binary not applicable。
+11. **bundle 构建失败要留全量日志**：`--filter`/`sed` 会吞掉 "Bundle:" 行之前的
+    报错，失败后只剩空输出。规则：重定向到文件 + echo exit code，成功判据是
+    bundle 目录含 `install.sh` + `lib/` + `tools/` 完整结构，而非命令退出码。
+    构建脚本会临时改写 `packages/utils/package.json` 的 version，进程被杀时
+    finally 不执行 → version 叠层污染（`--version` 显式传干净值可解）。另：
+    18.2.0 起编译二进制默认内嵌 bytecode，与 semble bundle 的 JSON import 组合
+    会在 Bun 1.3.14 启动崩溃（`Expected CommonJS module...`）——
+    `OMP_DISABLE_BYTECODE=1` 构建（compile-binary.ts 已加 env gate）。
+12. **hub `timeoutMs` 语义收窄**：上游 18.1.22 把 messaging/job 等待改自适应窗口
+    并删除 `timeoutMs`；我方保留的 schema 字段仅对 **process ops** 生效
+    （`resolveProcessTimeout` 的 ms→s fallback），schema 描述已收窄，勿再宣传
+    messaging 用途。launch-timeout.test.ts 锁定该语义。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
@@ -114,11 +140,13 @@ cd ~/workspace/act_ai_product/agents_harness/oh-my-pi
 ### Phase 2: Rebase
 
 1. Stash any dirty files:
+
    ```bash
    git stash
    ```
 
 2. Rebase:
+
    ```bash
    git rebase origin/main
    ```
@@ -130,6 +158,7 @@ cd ~/workspace/act_ai_product/agents_harness/oh-my-pi
    - For other our-files with no upstream changes → `git checkout --theirs`
 
 4. Continue until done:
+
    ```bash
    git rebase --continue
    ```
@@ -152,6 +181,7 @@ bun run check:rs
 ### Phase 4: Rebuild & Deploy omp
 
 1. Build bundle:
+
    ```bash
    bun scripts/build-semble-omp-package.ts --model-path "$SEMBLE_MODEL_PATH"
    ```
@@ -181,12 +211,12 @@ git push --force-with-lease liao main
 
 ## Machines
 
-| Machine | Arch | Role | 访问方式 |
-|---------|------|------|---------|
-| liao-NUC12DCMi9 (本机) | x64 | 主开发机（构建源），用户 liao | 本地直接操作 |
-| desktop | x64 | 廖工桌面工作站 DESKTOP-07JFCG5，用户 act_ai_server | `ssh desktop`（Tailscale: desktop-07jfcg5.tailad91fc.ts.net）——**是独立远程机，不是本机**，必须单独部署 |
-| cnp6s | x64 | CI/remote build | `ssh cnp6s` |
-| ser9 | x64 | CI/remote build | `ssh ser9` |
-| agx_orin | ARM64 | Jetson — skip, needs cross-compile | `ssh agx_orin` |
+| Machine                | Arch  | Role                                               | 访问方式                                                                                                |
+| ---------------------- | ----- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| liao-NUC12DCMi9 (本机) | x64   | 主开发机（构建源），用户 liao                      | 本地直接操作                                                                                            |
+| desktop                | x64   | 廖工桌面工作站 DESKTOP-07JFCG5，用户 act_ai_server | `ssh desktop`（Tailscale: desktop-07jfcg5.tailad91fc.ts.net）——**是独立远程机，不是本机**，必须单独部署 |
+| cnp6s                  | x64   | CI/remote build                                    | `ssh cnp6s`                                                                                             |
+| ser9                   | x64   | CI/remote build                                    | `ssh ser9`                                                                                              |
+| agx_orin               | ARM64 | Jetson — skip, needs cross-compile                 | `ssh agx_orin`                                                                                          |
 
 **部署清单 = 本机(本地 install) + cnp6s + ser9 + desktop（三台都走 ssh）**。desktop 与 cnp6s/ser9 并列在同一个 ssh 循环里，唯一例外是本机不走 ssh。
