@@ -50,8 +50,12 @@ export async function compileCodingAgent(options: CodingAgentCompileOptions): Pr
 			// Precompiled bytecode skips parsing the ~20 MB bundle at boot:
 			// `omp --version` 256 ms -> 30 ms on M4 Max (+52 MB binary).
 			// Keep import.meta.resolve in bundled dependencies valid under bytecode.
+			// Bytecode rejects top-level await in the bundle graph.
+			// OMP_DISABLE_BYTECODE=1: our semble bundle embeds a JSON import whose
+			// bytecode crashes Bun 1.3.14 at boot ("Expected CommonJS module to
+			// have a function wrapper"); ship that bundle without bytecode.
 			format: "esm",
-			bytecode: true,
+			bytecode: process.env.OMP_DISABLE_BYTECODE !== "1",
 			minify: {
 				identifiers: options.minifyIdentifiers ?? false,
 				keepNames: true,
