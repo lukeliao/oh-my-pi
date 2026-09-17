@@ -143,6 +143,10 @@ async function build() {
 	try {
 		await spawn(["bun", "--cwd=packages/coding-agent", "run", "build"], repoRoot, {
 			OMP_BUILD_OUTFILE: ompBuildOutfile,
+			// 18.2.0+ bytecode crashes Bun 1.3.14 at boot with this bundle's JSON
+			// import ("Expected CommonJS module to have a function wrapper") —
+			// compile without bytecode until that is fixed (see compile-binary.ts).
+			OMP_DISABLE_BYTECODE: "1",
 		});
 	} finally {
 		pkgJson.version = originalVersion;
