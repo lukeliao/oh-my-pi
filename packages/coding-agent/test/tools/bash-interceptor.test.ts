@@ -9,7 +9,7 @@ import {
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { BashTool, type BashToolInput } from "@oh-my-pi/pi-coding-agent/tools/bash";
-import { ToolError } from "@oh-my-pi/pi-coding-agent/tools/tool-errors";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 
 function createBashTool(rules: BashInterceptorRule[]): BashTool {
 	const session = {
