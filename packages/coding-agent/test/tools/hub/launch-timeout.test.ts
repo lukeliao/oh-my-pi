@@ -8,7 +8,9 @@
 import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { DaemonBrokerClient } from "../../../src/launch/client";
 import * as daemonClient from "../../../src/launch/client";
-import type { DaemonOperation, DaemonRpcResult, DaemonSnapshot } from "../../../src/launch/protocol";
+import type { DaemonOperation, DaemonRpcResult } from "../../../src/launch/protocol";
+import type { DaemonSnapshot, LaunchParams } from "@oh-my-pi/pi-tui/tools/hub";
+import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import type { ToolSession } from "../../../src/tools";
 import { executeLaunch } from "../../../src/tools/hub/launch";
 
@@ -55,7 +57,7 @@ describe("hub launch timeout resolution", () => {
 		});
 		vi.spyOn(daemonClient, "daemonClientForProject").mockResolvedValue(client);
 
-		await executeLaunch(SESSION, { op: "wait", name: "web", for: "exit", timeoutMs: 1_500_000 });
+		await executeLaunch(SESSION, { op: "wait", name: "web", for: "exit", timeoutMs: 1_500_000 } as LaunchParams);
 
 		expect(seen).toHaveLength(1);
 		expect(seen[0].op).toBe("wait");
@@ -70,7 +72,13 @@ describe("hub launch timeout resolution", () => {
 		});
 		vi.spyOn(daemonClient, "daemonClientForProject").mockResolvedValue(client);
 
-		await executeLaunch(SESSION, { op: "wait", name: "web", for: "exit", timeout: 60, timeoutMs: 7_000 });
+		await executeLaunch(SESSION, {
+			op: "wait",
+			name: "web",
+			for: "exit",
+			timeout: 60,
+			timeoutMs: 7_000,
+		} as LaunchParams);
 
 		expect((seen[0] as Extract<DaemonOperation, { op: "wait" }>).timeoutMs).toBe(60_000);
 	});
@@ -96,7 +104,7 @@ describe("hub launch timeout resolution", () => {
 		});
 		vi.spyOn(daemonClient, "daemonClientForProject").mockResolvedValue(client);
 
-		await executeLaunch(SESSION, { op: "wait", name: "web", timeoutMs: 0 });
+		await executeLaunch(SESSION, { op: "wait", name: "web", timeoutMs: 0 } as LaunchParams);
 
 		expect((seen[0] as Extract<DaemonOperation, { op: "wait" }>).timeoutMs).toBe(30_000);
 	});
@@ -119,8 +127,8 @@ describe("hub launch timeout resolution", () => {
 		});
 		vi.spyOn(daemonClient, "daemonClientForProject").mockResolvedValue(client);
 
-		await executeLaunch(SESSION, { op: "logs", name: "web", timeoutMs: 45_000 });
-		await executeLaunch(SESSION, { op: "stop", name: "web", timeoutMs: 45_000 });
+		await executeLaunch(SESSION, { op: "logs", name: "web", timeoutMs: 45_000 } as LaunchParams);
+		await executeLaunch(SESSION, { op: "stop", name: "web", timeoutMs: 45_000 } as LaunchParams);
 
 		expect((seen[0] as Extract<DaemonOperation, { op: "logs" }>).timeoutMs).toBe(45_000);
 		expect((seen[1] as Extract<DaemonOperation, { op: "stop" }>).timeoutMs).toBe(45_000);
