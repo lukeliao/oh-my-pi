@@ -20,6 +20,7 @@ import { DEFAULT_AUTO_BACKGROUND_THRESHOLD_MS, raceJobSettlement, resolveAutoBac
 import type { Settings } from "../config/settings";
 import { applyDirenvPreflight, type BashResult, executeBash } from "../exec/bash-executor";
 import { InternalUrlRouter } from "../internal-urls";
+import { evaluateBashRules, getPermissionRules } from "../permission/rules";
 
 import bashDescription from "../prompts/tools/bash.md" with { type: "text" };
 import type {

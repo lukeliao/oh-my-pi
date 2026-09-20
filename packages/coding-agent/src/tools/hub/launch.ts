@@ -104,7 +104,6 @@ function registerCompletionSink(
 	};
 }
 
-
 const KEY_INPUT: Record<string, string> = {
 	ENTER: "\r",
 	TAB: "\t",
@@ -433,4 +432,3 @@ export async function executeLaunch(
 		throw error;
 	}
 }
-

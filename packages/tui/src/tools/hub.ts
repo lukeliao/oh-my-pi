@@ -84,6 +84,20 @@ export const DEFAULT_HUB_LIST_LIMIT = 32;
 /** Maximum number of peers in a hub roster page. */
 export const MAX_HUB_LIST_LIMIT = 100;
 
+/** Tail size appended to a failed start's result so the model sees why it died. */
+export const START_FAILURE_TAIL_LINES = 25;
+/** Marker separating the failure tail from the rest of the start result content. */
+export const START_FAILURE_TAIL_MARKER = `[last ${START_FAILURE_TAIL_LINES} lines of output]`;
+/** Lines of the appended failure-output tail, if the content carries one. */
+export function failureTailFromContent(text: string): string[] {
+	const idx = text.indexOf(START_FAILURE_TAIL_MARKER);
+	if (idx < 0) return [];
+	return text
+		.slice(idx + START_FAILURE_TAIL_MARKER.length)
+		.split("\n")
+		.filter(line => line.length > 0);
+}
+
 /** Addressable roster tallies always returned by `op:"list"`. */
 export interface HubRosterCounts {
 	running: number;
@@ -848,6 +862,12 @@ export function launchRenderResult(
 					);
 				} else if (params.ready && daemon && daemon.readyAt === undefined && TERMINAL_STATES[daemon.state]) {
 					body.push(theme.fg("warning", "Process exited before readiness was observed."));
+				}
+				if (daemon?.state === "failed" || details?.timedOut) {
+					const tail = failureTailFromContent(text);
+					if (tail.length > 0) {
+						for (const line of tail) body.push(theme.fg("toolOutput", replaceTabs(line)));
+					}
 				}
 				break;
 			}
