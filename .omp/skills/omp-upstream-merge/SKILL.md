@@ -224,7 +224,10 @@ git push --force-with-lease liao main
 - Check for new breaking changes in upstream changelogs (`packages/coding-agent/CHANGELOG.md`)
 - Update our tool descriptions if upstream renames tools (e.g. `search`→`grep`, `find`→`glob` in v16.2.0)
 - Fix any `omp` → `omp` drift in wrapper template
-- Ensure `~/.omp/agent/config.yml` has `tools.discoveryMode: "off"`
+- 确认旧 discovery 键未回流：上游 18.2.x 已删除 BM25 工具发现，`tools.discoveryMode`/
+  `tools.essentialOverride`/`mcp.discoveryMode`/`mcp.discoveryDefaultServers` 随之废弃，
+  settings.ts 迁移器会主动删除死键——config.yml 里没有它们是**预期行为**，
+  不要再写回（2026-09-24 之前旧版 skill 曾错误要求确保 `tools.discoveryMode: "off"`）
 
 ## Machines
 
