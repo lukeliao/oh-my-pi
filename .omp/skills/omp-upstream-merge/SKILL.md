@@ -124,6 +124,23 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     （`resolveProcessTimeout` 的 ms→s fallback），schema 描述已收窄，勿再宣传
     messaging 用途。launch-timeout.test.ts 锁定该语义。
 
+## Hard lessons (2026-09-24, v18.2.11 merge)
+
+13. **LFS pre-push hook 在重写历史上会误判重传并挂死，报误导性 `missing object`**：
+    push 失败 `ref "main":: missing object: <blob>` 时先分诊——
+    (a) `git cat-file -t <oid>` 确认本地存在；(b) `git ls-remote liao main` 确认服务端
+    ref 没被动过；(c) `git lfs push --dry-run liao main` 看是否卡在上传（v18.2.11 轮：
+    LFS 遍历 b12cffc176..new 范围时把未变的 `model.safetensors` pointer 当作待上传，
+    SSH 链路 LFS 传输挂起 120s+ 后报 missing object）。三方比对 pointer
+    （`git ls-tree HEAD <path>` / `git show liao/main:<path>` / `git lfs ls-files -l`，
+    `*` 标记 = 本地对象在）确认未变后，`git -c core.hooksPath=/dev/null push` 绕过
+    ——绕过后 push 本体仅数秒。禁止对 changed pointer 绕过（须先真实上传 LFS 对象）。
+14. **napi CLI 输出名变了**：baseline 变体产物名为 `pi_natives.linux-x64-gnu.node`
+    （非旧记录的 `pi_natives.linux-x64.node`），且 napi cli 实际路径是
+    `node_modules/@napi-rs/cli/dist/cli.js`（非 `packages/node_modules/...`）。
+    构建脚本的 whitespace 污染若被 `git add -A` 裹进 merge commit，恢复后 commit
+    会变空——直接 `git reset HEAD^` 丢弃，不要 amend（会报 would-be-empty）。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
