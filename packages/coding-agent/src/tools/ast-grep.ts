@@ -233,10 +233,7 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 			const forbidTargets = [resolvedSearchPath];
 			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
 			for (const forbidTarget of forbidTargets) {
-				const forbidError = await checkPathForbidden(
-					cfgSandboxForbidRead.get(this.session.settings),
-					forbidTarget,
-				);
+				const forbidError = await checkPathForbidden(cfgSandboxForbidRead.get(this.session.settings), forbidTarget);
 				if (forbidError) {
 					throw new ToolError(forbidError);
 				}
