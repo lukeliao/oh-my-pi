@@ -2396,10 +2396,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// resolution): a denied target fails closed even when the file does not
 		// exist, so the deny list cannot be probed for existence. The post-stat
 		// check below still catches suffix-resolution escapes into denied dirs.
-		const preForbidError = await checkPathForbidden(
-			cfgSandboxForbidRead.get(this.session.settings),
-			absolutePath,
-		);
+		const preForbidError = await checkPathForbidden(cfgSandboxForbidRead.get(this.session.settings), absolutePath);
 		if (preForbidError) {
 			throw new ToolError(preForbidError);
 		}
@@ -2486,10 +2483,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		markRawSuffixResolution(suffixResolution, isRawSelector(parsed));
 
 		// sandbox.forbidRead — deny-list gate for the built-in path-reading tools.
-		const forbidError = await checkPathForbidden(
-			cfgSandboxForbidRead.get(this.session.settings),
-			absolutePath,
-		);
+		const forbidError = await checkPathForbidden(cfgSandboxForbidRead.get(this.session.settings), absolutePath);
 		if (forbidError) {
 			throw new ToolError(forbidError);
 		}

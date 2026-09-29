@@ -1,4 +1,3 @@
-import * as path from "node:path";
 /**
  * System prompt construction and project context loading
  */

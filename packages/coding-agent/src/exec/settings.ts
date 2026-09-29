@@ -10,6 +10,8 @@ export interface BashInterceptorRule {
 	flags?: string;
 	tool: string;
 	message: string;
+	/** Stable policy identity for repeat-block escalation; derived from `tool` when omitted. */
+	policyKey?: string;
 	allowSubcommands?: string[];
 }
 
