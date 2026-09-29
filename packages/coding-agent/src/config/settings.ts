@@ -54,7 +54,12 @@ import {
 // Registers every setting before any instance is read (definitions live next to their domains).
 import "./all-settings";
 import { cfgModelRoles, cfgModelRoleStorage } from "./model-settings";
-import { cfgShellPath } from "../exec/settings";
+import {
+	cfgBashInterceptorExtraPatterns,
+	cfgBashInterceptorPatterns,
+	cfgShellPath,
+	type BashInterceptorRule,
+} from "../exec/settings";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -1616,6 +1621,16 @@ export class Settings {
 		if (Object.hasOwn(this.#project, "extensions")) return "project";
 		if (this.#parent && !Object.hasOwn(this.#global, "extensions")) return this.#parent.extensionsSourceLevel();
 		return "user";
+	}
+
+	/**
+	 * Get bash interceptor rules (typed accessor for complex array config).
+	 * `extraPatterns` are prepended: checkBashInterception returns the first
+	 * matching rule, so narrow extras can override broader built-in defaults
+	 * without copying the whole default rule set.
+	 */
+	getBashInterceptorRules(): BashInterceptorRule[] {
+		return [...cfgBashInterceptorExtraPatterns.get(this), ...cfgBashInterceptorPatterns.get(this)];
 	}
 
 	#modelRolesFromLayer(layer: RawSettings): Record<string, string> {
