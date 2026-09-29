@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
+import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { AstGrepTool } from "@oh-my-pi/pi-coding-agent/tools/ast-grep";
 import { checkForbidReadBash } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
@@ -162,12 +163,8 @@ describe("glob seam intercepts a denied search", () => {
 	function createGlobTool(): GlobTool {
 		const session = {
 			cwd: root,
-			settings: {
-				get(key: string) {
-					if (key === "sandbox.forbidRead") return [denyDir];
-					return undefined;
-				},
-			},
+			getSessionFile: () => undefined,
+			settings: Settings.isolated({ "sandbox.forbidRead": [denyDir] }),
 		} as unknown as ToolSession;
 		return new GlobTool(session);
 	}
@@ -248,12 +245,8 @@ describe("grep and ast_grep seams intercept a denied search", () => {
 	function createSession(): ToolSession {
 		return {
 			cwd: root,
-			settings: {
-				get(key: string) {
-					if (key === "sandbox.forbidRead") return [denyDir];
-					return undefined;
-				},
-			},
+			getSessionFile: () => undefined,
+			settings: Settings.isolated({ "sandbox.forbidRead": [denyDir] }),
 		} as unknown as ToolSession;
 	}
 
@@ -292,12 +285,8 @@ describe("read seam intercepts a denied file", () => {
 	function createReadSession(): ToolSession {
 		return {
 			cwd: root,
-			settings: {
-				get(key: string) {
-					if (key === "sandbox.forbidRead") return [denyDir];
-					return undefined;
-				},
-			},
+			getSessionFile: () => undefined,
+			settings: Settings.isolated({ "sandbox.forbidRead": [denyDir] }),
 			isToolActive: () => false,
 		} as unknown as ToolSession;
 	}
@@ -335,12 +324,8 @@ describe("read seam intercepts a denied file", () => {
 		fs.writeFileSync(deniedLocalFile, "top secret\n");
 		const tool = new ReadTool({
 			cwd: root,
-			settings: {
-				get(key: string) {
-					if (key === "sandbox.forbidRead") return [deniedLocalDir];
-					return undefined;
-				},
-			},
+			getSessionFile: () => undefined,
+			settings: Settings.isolated({ "sandbox.forbidRead": [deniedLocalDir] }),
 			isToolActive: () => false,
 			localProtocolOptions: { getArtifactsDir: () => root, getSessionId: () => "test" },
 		} as unknown as ToolSession);
