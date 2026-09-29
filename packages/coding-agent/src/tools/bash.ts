@@ -92,6 +92,8 @@ import {
 	cfgBashInterceptorExtraPatterns,
 	cfgBashInterceptorPatterns,
 	cfgBashPatterns,
+	cfgPermissionRules,
+	cfgSandboxForbidRead,
 } from "../exec/settings";
 import { cfgDisplayShellVisualization } from "../modes/settings";
 import { cfgSkillful } from "../session/settings";
@@ -718,6 +720,20 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				reason: `Blocked by bash pattern: ${denied.rule.match}`,
 			};
 		}
+		// WS2 permission rules: an explicit deny is honoured before any pattern
+		// prompt/allow below, so a weaker project rule can never loosen it.
+		const permissionRules = getPermissionRules(cfgPermissionRules.get(this.session.settings));
+		const permissionDecision = evaluateBashRules(permissionRules, command);
+		if (permissionDecision.action === "deny") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "deny",
+				reason: permissionDecision.matched
+					? `Blocked by permission rule: ${permissionDecision.matched.match}`
+					: "Blocked by permission rule: dynamic bash command",
+			};
+		}
 		const prompted =
 			authorityDecision.kind === "prompt" ? authorityDecision : decision.kind === "prompt" ? decision : undefined;
 		if (prompted) {
@@ -740,6 +756,19 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				}
 			}
 		}
+		// `ask`/`allow` come last: they must lose to an operator prompt, a
+		// critical pattern, and any deny above.
+		if (permissionDecision.action === "ask") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "prompt",
+				reason: permissionDecision.matched
+					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
+					: "Prompt required by permission rule",
+			};
+		}
+		if (permissionDecision.action === "allow") return { tier: "write", policy: "allow" };
 		if (decision.kind === "allow") return { tier: "write", policy: "allow" };
 		return "exec";
 	};
@@ -1512,7 +1541,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		// mitigation, not a hard gate (see checkForbidReadBash).
 		const forbidReadBash = await checkForbidReadBash(
 			rawCommand,
-			this.session.settings.get("sandbox.forbidRead"),
+			cfgSandboxForbidRead.get(this.session.settings),
 		);
 		if (forbidReadBash.block) {
 			throw new ToolError(forbidReadBash.message ?? "Command blocked");
