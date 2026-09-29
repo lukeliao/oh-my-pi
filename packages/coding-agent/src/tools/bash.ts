@@ -1059,10 +1059,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		// command (`cat`/`head`/`tail`/`less`/`more`) whose literal path argument
 		// is denied. No-op unless the deny list is configured. This is a narrow
 		// mitigation, not a hard gate (see checkForbidReadBash).
-		const forbidReadBash = await checkForbidReadBash(
-			rawCommand,
-			cfgSandboxForbidRead.get(this.session.settings),
-		);
+		const forbidReadBash = await checkForbidReadBash(rawCommand, cfgSandboxForbidRead.get(this.session.settings));
 		if (forbidReadBash.block) {
 			throw new ToolError(forbidReadBash.message ?? "Command blocked");
 		}
