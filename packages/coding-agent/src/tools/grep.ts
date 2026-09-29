@@ -14,6 +14,7 @@ import {
 	parseArchivePathCandidates,
 } from "@oh-my-pi/pi-utils/ar";
 import { getEditStore, recordFullySeenRows } from "../edit/store";
+import { cfgSandboxForbidRead } from "../exec/settings";
 import { checkPathForbidden } from "../permission/forbid-read";
 import { sessionResolveContext } from "../internal-urls/context";
 import { InternalUrlRouter } from "../internal-urls/router";
@@ -691,7 +692,7 @@ export class GrepTool implements AgentTool<typeof searchSchema, GrepToolDetails>
 				if (exactFilePaths) forbidTargets.push(...exactFilePaths);
 				for (const forbidTarget of forbidTargets) {
 					const forbidError = await checkPathForbidden(
-						this.session.settings.get("sandbox.forbidRead"),
+						cfgSandboxForbidRead.get(this.session.settings),
 						forbidTarget,
 					);
 					if (forbidError) {

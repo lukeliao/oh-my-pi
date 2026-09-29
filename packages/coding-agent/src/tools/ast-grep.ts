@@ -31,6 +31,7 @@ import {
 } from "./path-utils";
 import { searchApprovalCacheTargets } from "./search-approval-targets";
 import { toPathList } from "@oh-my-pi/pi-tui/render/render-utils";
+import { cfgSandboxForbidRead } from "../exec/settings";
 import { checkPathForbidden } from "../permission/forbid-read";
 import { isRawSelector } from "./read-selector";
 import { capParseErrors, formatCodeFrameLine, formatParseErrors } from "@oh-my-pi/pi-tui/render/render-utils";
@@ -247,7 +248,7 @@ export class AstGrepTool implements AgentTool<typeof astGrepSchema, AstGrepToolD
 			if (multiTargets) forbidTargets.push(...multiTargets.map(target => target.basePath));
 			for (const forbidTarget of forbidTargets) {
 				const forbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
+					cfgSandboxForbidRead.get(this.session.settings),
 					forbidTarget,
 				);
 				if (forbidError) {
