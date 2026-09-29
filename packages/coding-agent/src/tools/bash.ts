@@ -77,6 +77,8 @@ import {
 	cfgBashInterceptorExtraPatterns,
 	cfgBashInterceptorPatterns,
 	cfgBashPatterns,
+	cfgPermissionRules,
+	cfgSandboxForbidRead,
 } from "../exec/settings";
 import { cfgSkillful } from "../session/settings";
 import { cfgWorktreeClone } from "../task/settings";
@@ -518,7 +520,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		// WS2 permission rules run before the legacy bash patterns: deny blocks,
 		// ask prompts through the standard approval flow, allow skips the prompt.
 		// With no rules configured this is a no-op and behavior is unchanged.
-		const permissionRules = getPermissionRules(this.session.settings.get("permission.rules"));
+		const permissionRules = getPermissionRules(cfgPermissionRules.get(this.session.settings));
 		const permissionDecision = evaluateBashRules(permissionRules, command);
 		if (permissionDecision.action === "deny") {
 			return {
@@ -1059,7 +1061,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		// mitigation, not a hard gate (see checkForbidReadBash).
 		const forbidReadBash = await checkForbidReadBash(
 			rawCommand,
-			this.session.settings.get("sandbox.forbidRead"),
+			cfgSandboxForbidRead.get(this.session.settings),
 		);
 		if (forbidReadBash.block) {
 			throw new ToolError(forbidReadBash.message ?? "Command blocked");

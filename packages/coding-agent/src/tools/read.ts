@@ -45,6 +45,7 @@ import {
 	sessionResolveContext,
 } from "../internal-urls";
 import { isMarkdownPath } from "@oh-my-pi/pi-tui/lang-from-path";
+import { cfgSandboxForbidRead } from "../exec/settings";
 import { checkPathForbidden } from "../permission/forbid-read";
 import readDescription from "../prompts/tools/read.md" with { type: "text" };
 import type { ToolSession } from "../sdk";
@@ -1665,7 +1666,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 				// sandbox.forbidRead — gate the archive container itself so member
 				// reads cannot bypass the deny list via `container:member` syntax.
 				const archiveForbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
+					cfgSandboxForbidRead.get(this.session.settings),
 					archivePath.absolutePath,
 				);
 				if (archiveForbidError) {
@@ -1688,7 +1689,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 			if (sqlitePath) {
 				// sandbox.forbidRead — gate the sqlite container itself (see archive branch).
 				const sqliteForbidError = await checkPathForbidden(
-					this.session.settings.get("sandbox.forbidRead"),
+					cfgSandboxForbidRead.get(this.session.settings),
 					sqlitePath.absolutePath,
 				);
 				if (sqliteForbidError) {
@@ -1734,7 +1735,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// exist, so the deny list cannot be probed for existence. The post-stat
 		// check below still catches suffix-resolution escapes into denied dirs.
 		const preForbidError = await checkPathForbidden(
-			this.session.settings.get("sandbox.forbidRead"),
+			cfgSandboxForbidRead.get(this.session.settings),
 			absolutePath,
 		);
 		if (preForbidError) {
@@ -1815,7 +1816,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 
 		// sandbox.forbidRead — deny-list gate for the built-in path-reading tools.
 		const forbidError = await checkPathForbidden(
-			this.session.settings.get("sandbox.forbidRead"),
+			cfgSandboxForbidRead.get(this.session.settings),
 			absolutePath,
 		);
 		if (forbidError) {
@@ -2607,7 +2608,7 @@ export class ReadTool implements AgentTool<typeof readSchema, ReadToolDetails> {
 		// rule://) resolve to controlled resources and remain ungated.
 		if (extractUriScheme(url) === "local" && resource.sourcePath) {
 			const localForbidError = await checkPathForbidden(
-				this.session.settings.get("sandbox.forbidRead"),
+				cfgSandboxForbidRead.get(this.session.settings),
 				resource.sourcePath,
 			);
 			if (localForbidError) {
