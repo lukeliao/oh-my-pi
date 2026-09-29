@@ -141,6 +141,27 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     构建脚本的 whitespace 污染若被 `git add -A` 裹进 merge commit，恢复后 commit
     会变空——直接 `git reset HEAD^` 丢弃，不要 amend（会报 would-be-empty）。
 
+## Hard lessons (2026-09-29, v18.4.3 merge)
+
+15. **18.4.x settings 全面 registry 化**：`config/settings-schema.ts` 被删除，setting
+    定义分散到各 domain 的 `settings.ts`（`register({id,...})` + `all-settings.ts` 聚合），
+    `Settings` 实例**没有裸 `get(key)`**——所有 `settings.get("x.y")` 必须改为
+    `cfgXy.get(settings)` registry handle。fork 的 `sandbox.forbidRead` /
+    `permission.rules` / `bashInterceptor.extraPatterns` 均需在 `exec/settings.ts`
+    重新 register。检查器：`bun run check:ts`（会暴露 valueCache/slot 类运行错）。
+16. **18.4.x hub 工具整体删除**：拆为专用 `wait` 工具 + `proc://`/`agent://` 协议
+    （commit f89a6db15e）。fork 的 hub `timeoutMs` 语义（lesson 12）随 hub 删除作废；
+    `test/tools/hub/launch-timeout.test.ts` 引用已删实现，replay 后须显式删除。
+17. **18.4.3 起 .node 需要 version stamp**：embed 校验 `PI_NATIVES_VERSION_STAMP:<ver>`；
+    `bazel-natives host` 自动打戳，手编 baseline（裸 napi CLI）不会——补
+    `bun scripts/stamp-native-version.ts <path>` 后再 build bundle。
+18. **18.4.x 把 context/git 渲染从 custom-system-prompt.md 迁到 project-prompt.md**
+    （跨目录 Anthropic prompt cache 命中）：fork 的 OKF `<file>` 属性 +
+    `<okf-wiki-protocol>` 块要以 project-prompt.md 的新 `<repo-rules>` 区为新家；
+    旧 `<project>` 块整体取上游删除侧，否则双重注入 + 破坏静态前缀缓存。
+19. **force push 的 lease 要用 `git ls-remote` 的当前值**：上轮推过收尾 commit 后
+    `--force-with-lease=main:<旧值>` 会报 stale info；重推前刷新远端 ref。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
