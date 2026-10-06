@@ -162,6 +162,19 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
 19. **force push 的 lease 要用 `git ls-remote` 的当前值**：上轮推过收尾 commit 后
     `--force-with-lease=main:<旧值>` 会报 stale info；重推前刷新远端 ref。
 
+## Hard lessons (2026-10-06, v18.6.2 merge)
+
+20. **上游自己的代码也可能过不了本地 clippy `-D warnings`**（版本/feature 差异）：
+    v18.6.2 的 pi-natives desktop linux 新代码带 9 个 clippy error（collapsed-if、
+    unnecessary_wraps、const fn、分号、doc 反引号）。修法：`unnecessary_wraps` 用
+    `#[expect(clippy::unnecessary_wraps, reason = "...")]`（裸 `#[allow]` 会被
+    `allow_attributes_without_reason` 拦；长 reason 需 rustfmt 多行）。fork 引入的
+    prefer-const 级 oxlint error 也会卡 check:tools（warning 不阻塞，error 阻塞）。
+21. **build 产物的 `(... &)` 后台启动不可靠**：omp 会话的 shell 退出可能带走子进程，
+    log 空 + 产物时间戳不动 = 没跑成。native 构建一律前台 + `> log 2>&1; echo EXIT=$?`。
+    另外 napi 写出 modern.node 有瞬间 rename 窗口，build EXIT=0 后立即 stat 可能
+    No such file——ls 复核再下结论。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
