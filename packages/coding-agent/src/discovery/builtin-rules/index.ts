@@ -8,6 +8,7 @@
  * Registered by the lowest-priority `builtin-defaults` rule provider so any
  * user/project/tool rule with the same name overrides the bundled copy.
  */
+import expressionCommunication from "./expression-communication.md" with { type: "text" };
 import goAddCleanup from "./go-add-cleanup.md" with { type: "text" };
 import goBenchLoop from "./go-bench-loop.md" with { type: "text" };
 import goExpPromoted from "./go-exp-promoted.md" with { type: "text" };
@@ -42,8 +43,12 @@ export interface BuiltinRuleSource {
 	content: string;
 }
 
+/** Canonical shared expression text, also used by advisors. */
+export const EXPRESSION_COMMUNICATION_SOURCE = expressionCommunication;
+
 /** All bundled default rules, ordered by name. */
 export const BUILTIN_RULE_SOURCES: readonly BuiltinRuleSource[] = [
+	{ name: "expression-communication", content: expressionCommunication },
 	{ name: "go-add-cleanup", content: goAddCleanup },
 	{ name: "go-bench-loop", content: goBenchLoop },
 	{ name: "go-exp-promoted", content: goExpPromoted },

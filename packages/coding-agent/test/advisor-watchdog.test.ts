@@ -76,6 +76,8 @@ describe("advisor watchdog prompt discovery", () => {
 			expect(dump).not.toBeNull();
 			expect(dump).toContain(watchdogContent);
 			expect(dump).toContain(activeRepoMarker);
+			// Advisors receive the same canonical expression rules as executors.
+			expect(dump).toContain("先回答使用者正在问的问题，再补原因、证据和限制。");
 			expect(dump!.indexOf(watchdogContent)).toBeLessThan(dump!.indexOf(activeRepoMarker));
 		} finally {
 			try {

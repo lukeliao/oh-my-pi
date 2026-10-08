@@ -40,7 +40,7 @@ import { isUsageLimitOutcome, resolveModelServiceTier, streamSimple } from "@oh-
 import * as AIError from "@oh-my-pi/pi-ai/error";
 import { extractProviderRetryHint } from "@oh-my-pi/pi-ai/utils/retry-after";
 import { modelsAreEqual } from "@oh-my-pi/pi-catalog/models";
-import { extractHttpStatusFromError, logger, prompt } from "@oh-my-pi/pi-utils";
+import { extractHttpStatusFromError, logger, parseFrontmatter, prompt } from "@oh-my-pi/pi-utils";
 import type { AdvisorConfig } from "@oh-my-pi/pi-tui/overlays/advisor-config";
 import {
 	ADVISOR_DEFAULT_BUDGET_PER_UPDATE,
@@ -72,6 +72,7 @@ import {
 	resolveAdvisorDeliveryChannel,
 	slugifyAdvisorName,
 } from "../advisor";
+import { EXPRESSION_COMMUNICATION_SOURCE } from "../discovery/builtin-rules";
 import { evictStaleToolResults } from "../advisor/tool-result-eviction";
 import type { ModelRegistry } from "../config/model-registry";
 import {
@@ -129,6 +130,7 @@ import { cfgCompaction, cfgContextPromotionEnabled } from "./context-settings";
 import { resolveModelCompactionSettings } from "./model-compaction-threshold";
 import { cfgRetry, cfgTierAdvisor } from "./settings";
 
+const ADVISOR_EXPRESSION_PROMPT = parseFrontmatter(EXPRESSION_COMMUNICATION_SOURCE).body.trim();
 const ADVISOR_CODEX_SSE_MAX_ATTEMPTS = 1;
 
 /**
@@ -1301,7 +1303,10 @@ export class SessionAdvisors {
 
 			// `#advisorWatchdogPrompt` already carries WATCHDOG.md + YAML shared
 			// instructions; `config.instructions` adds this advisor's specialization.
-			const systemPrompt = [prompt.render(advisorSystemPrompt, { max_notes_per_update: budgetPerUpdate })];
+			const systemPrompt = [
+				prompt.render(advisorSystemPrompt, { max_notes_per_update: budgetPerUpdate }),
+				ADVISOR_EXPRESSION_PROMPT,
+			];
 			if (this.#advisorContextPrompt) systemPrompt.push(this.#advisorContextPrompt);
 			if (this.#advisorMemoryPrompt) systemPrompt.push(this.#advisorMemoryPrompt);
 			if (this.#advisorWatchdogPrompt) systemPrompt.push(this.#advisorWatchdogPrompt);
