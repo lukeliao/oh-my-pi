@@ -41,9 +41,18 @@ describe("builtin-defaults rule provider", () => {
 		// Name-based dedup is first-wins, so a duplicate would be silently shadowed.
 		expect(new Set(names).size).toBe(names.length);
 	});
-
-	it("parses every bundled rule as a TTSR rule (non-empty condition/astCondition and scope)", async () => {
+	it("bundles the shared expression rule as always-apply content", async () => {
 		const rules = await loadBuiltinRules();
+		const rule = rules.find(r => r.name === "expression-communication");
+		expect(rule?.alwaysApply).toBe(true);
+		expect(rule?.content).toContain("不把内部笔记、临时阶段名和任务编号直接当成交付说明");
+	});
+
+	it("parses every bundled TTSR rule as a TTSR rule", async () => {
+		const rules = (await loadBuiltinRules()).filter(
+			rule => (rule.condition?.length ?? 0) + (rule.astCondition?.length ?? 0) > 0,
+		);
+		expect(rules.length).toBeGreaterThan(0);
 		for (const rule of rules) {
 			const conditionCount = (rule.condition?.length ?? 0) + (rule.astCondition?.length ?? 0);
 			expect(conditionCount, `${rule.name} condition/astCondition`).toBeGreaterThan(0);
@@ -51,8 +60,10 @@ describe("builtin-defaults rule provider", () => {
 		}
 	});
 
-	it("forces every bundled rule to warn without interrupting", async () => {
-		const rules = await loadBuiltinRules();
+	it("forces every bundled TTSR rule to warn without interrupting", async () => {
+		const rules = (await loadBuiltinRules()).filter(
+			rule => (rule.condition?.length ?? 0) + (rule.astCondition?.length ?? 0) > 0,
+		);
 		for (const rule of rules) {
 			expect(rule.interruptMode, rule.name).toBe("never");
 		}
