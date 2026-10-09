@@ -45,6 +45,14 @@ Karpathy 的要求属于**表达层**：怎么把话讲清楚，不影响工具�
 
 同源保证：两处注入读同一个 md 文件。改正文只改 `expression-communication.md`，两处自动一致。
 
+### 产品术语的注入通道（workspace 级，不进 binary）
+
+产品术语（说哪些词）与表达纪律（怎么说话）走不同通道：
+
+- **载体**：`act_ai_product` 根 `AGENTS.md` 的「产品术语速查（已审定条目）」节——经 project-context 自动进入所有产品 workspace 会话（含子仓 cwd 会话、task/subagent 继承）。内容是 `product_doc/glossary.md` 的〔用户已确认〕39 条紧凑快照；待审/已排除条目不进系统规范（遵守 glossary 使用约束），真源冲突以真源和代码为准。
+- **为什么是 AGENTS.md 而不是规则目录**：实测发现 `.agent/rules` 与 `.omp/rules` 的向上查找止于各子仓自己的 git 根——在 `drivers/act_ai_drivers` 等子仓 cwd 启动的会话看不到 workspace 根的规则文件；而根 AGENTS.md 的 project-context 通道实测跨嵌套仓边界，子仓会话可见。
+- **迭代**：改根 `AGENTS.md` 该节 + git 同步即可，新会话生效，免构建免部署。glossary 条目变更后需同步该节（真源仍是 `product_doc/glossary.md`）。
+
 ## 3. 关键设计决策
 
 - **内置 rule，而不是用户级 `~/.omp/agent/RULES.md`**：单一正文真源、随版本分发、多机免同步。用户文件与 builtin 并存会把正文渲染两次（alwaysApply 规则之间无内容去重），因此新 bundle 部署后删除了四机用户副本（`RULES.md`/`WATCHDOG.md`，备份在各机 `/tmp/*.bak-20261009`）。
