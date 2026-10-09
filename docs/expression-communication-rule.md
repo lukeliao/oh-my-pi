@@ -27,7 +27,23 @@ Karpathy 的要求属于**表达层**：怎么把话讲清楚，不影响工具�
 | advisor | `packages/coding-agent/src/session/session-advisors.ts` 的 `ADVISOR_EXPRESSION_PROMPT` | 同一文件 `parseFrontmatter(...).body` | 显式 push 进 advisor `systemPrompt`（advisor 装配不走 builtin rule 通道） |
 | 用户级补充 | `~/.omp/agent/APPEND_SYSTEM.md` | 只保留硬件/操作规则指针段 | 不含表达规范正文，避免重复渲染 |
 
-同源保证：两处注入读同一个 md 文件。改正文只改 `expression-communication.md`，两处自动一致。正文按角色**恰好渲染 1 次**——builtin rule 渲染 1 次，advisor 注入 1 次；subagent 会话（`taskDepth > 0` 或带 `parentTaskPrefix`）复用主会话的 generic-rules 装配路径，不另行拼装。
+### 注入链路（执行顺序）
+
+**链路 A —— 所有会话（main / task / vibe worker / subagent）：**
+
+1. **编译期内嵌**：`builtin-rules/index.ts` 用 `import expressionCommunication from "./expression-communication.md" with { type: "text" }` 把 md 全文（含 frontmatter）编进 binary，注册进 `BUILTIN_RULE_SOURCES`，同时导出 `EXPRESSION_COMMUNICATION_SOURCE`。
+2. **规则发现**：会话启动时 `discovery/builtin-defaults.ts` 的 `builtin-defaults` provider（priority=1）把 `BUILTIN_RULE_SOURCES` 经 `buildRuleFromMarkdown` 解析成 `Rule` 对象；frontmatter 的 `alwaysApply: true` 成为规则属性。
+3. **分桶**：`capability/rule-buckets.ts` 的 `bucketRules` 把 `alwaysApply === true` 的规则放进 `alwaysApplyRules` 桶（不进 rulebook，不做 TTSR 触发）。
+4. **渲染进 system prompt**：`system-prompt.ts` 的 `buildSystemPrompt` 收到 `alwaysApplyRules`，先经 `dedupeAlwaysApplyRules` 对 promptSources（custom prompt / append / contextFiles）做内容去重，再由模板 `prompts/system/system-prompt.md` 的 `<generic-rules>` 块（`{{#each alwaysApplyRules}}{{content}}{{/each}}`）把正文写进 system prompt。
+5. 这是所有 AgentSession 的公共装配路径——main、task、subagent（`taskDepth > 0` 或带 `parentTaskPrefix`）、vibe worker 都走它，所以正文每会话恰好出现 1 次。
+
+**链路 B —— advisor（不走上面的模板）：**
+
+1. **取正文**：`session/session-advisors.ts` 模块加载时执行 `ADVISOR_EXPRESSION_PROMPT = parseFrontmatter(EXPRESSION_COMMUNICATION_SOURCE).body.trim()`——同一个导出，frontmatter 被剥掉。
+2. **注入**：advisor 会话装配时 `systemPrompt = [渲染后的 advisor 基础 prompt, ADVISOR_EXPRESSION_PROMPT, ...]`，其后才是 context/memory/watchdog 段。advisor 的 system prompt 不经过 `<generic-rules>` 模板，所以必须显式 push 这一段。
+3. 该注入与 `WATCHDOG.md` 是否存在无关。
+
+同源保证：两处注入读同一个 md 文件。改正文只改 `expression-communication.md`，两处自动一致。
 
 ## 3. 关键设计决策
 
