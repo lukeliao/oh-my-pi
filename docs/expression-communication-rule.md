@@ -39,7 +39,7 @@ Karpathy 的要求属于**表达层**：怎么把话讲清楚，不影响工具�
 ## 4. 验证方法（可复现）
 
 - 单测：`packages/coding-agent/test/discovery/builtin-defaults.test.ts`（断言 `alwaysApply` 与正文标记句）；`packages/coding-agent/test/advisor-watchdog.test.ts`（session 装配层断言 advisor dump 含正文标记句）。
-- prompt 装配 smoke（零模型）：空 agentDir 与真实 agentDir 各跑一遍，main / task / subagent / advisor 四类会话正文各恰好 1 次（无重复、无遗漏）。
+- prompt 装配 smoke（零模型）：空 agentDir 与真实 agentDir 各跑一遍，main / task / subagent / advisor 正文各恰好 1 次（无重复、无遗漏）。subagent 一场同时覆盖 vibe worker（它复用 task spawn 的 subagent 装配路径）；未单独进 `/vibe` runtime 验证。
 - binary 内嵌验证：bun compile 把非 ASCII 字符串存为 `\uXXXX` 转义序列，字节计数须按转义形态检索（按 UTF-8/UTF-16 检索会误判缺失）。
 - 部署核验：四台 x64 开发机 `lib/omp` 完整 SHA-256 一致，`omp --version` 同版本。
 
@@ -49,6 +49,10 @@ Karpathy 的要求属于**表达层**：怎么把话讲清楚，不影响工具�
 - 本文件加入后，已部署 binary 内嵌的 `omp://` docs 索引在下次构建时收进（`docs-index.generated.ts` 为构建生成物）。
 
 ## 6. 修改规范正文的流程
+
+快速试稿（不重建）：在 `.omp/rules/` 或项目 rules 目录放同名规则 `expression-communication.md` 即可覆盖 builtin（同名 first-wins；builtin provider priority=1，任何用户/项目规则都赢）。定稿后把正文落回 builtin md 并删除覆盖文件。临时停用单条规则可用 `ttsr.disabledRules: ["expression-communication"]`，整体停用用 `ttsr.builtinRules: false`。
+
+定稿入库：
 
 1. 改 `packages/coding-agent/src/discovery/builtin-rules/expression-communication.md`（保持 frontmatter `alwaysApply: true`）。
 2. 同步更新 `builtin-defaults.test.ts` 与 `advisor-watchdog.test.ts` 里的正文标记句断言。
