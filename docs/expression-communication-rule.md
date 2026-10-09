@@ -50,7 +50,7 @@ Karpathy 的要求属于**表达层**：怎么把话讲清楚，不影响工具�
 
 ## 6. 修改规范正文的流程
 
-快速试稿（不重建）：在 `.omp/rules/` 或项目 rules 目录放同名规则 `expression-communication.md` 即可覆盖 builtin（同名 first-wins；builtin provider priority=1，任何用户/项目规则都赢）。定稿后把正文落回 builtin md 并删除覆盖文件。临时停用单条规则可用 `ttsr.disabledRules: ["expression-communication"]`，整体停用用 `ttsr.builtinRules: false`。
+快速试稿（不重建）：放一个同名规则 `expression-communication.md` 即可覆盖 builtin（同名 first-wins；builtin provider priority=1，任何用户/项目规则都赢）。路径按作用域选：用户全局 `~/.omp/agent/rules/`（对所有项目生效），项目级 `<cwd>/.omp/rules/`（只对当前仓生效）；规则名取自文件名，扩展名 `md`/`mdc`。定稿后把正文落回 builtin md 并删除覆盖文件。临时停用单条规则可用 `ttsr.disabledRules: ["expression-communication"]`，整体停用用 `ttsr.builtinRules: false`。
 
 定稿入库：
 
