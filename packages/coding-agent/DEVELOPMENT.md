@@ -135,6 +135,7 @@ Top-level entry modules: `cli.ts`, `main.ts`, `sdk.ts`, `index.ts` (SDK barrel),
 
 ### Discovery, context, and rules
 - [context-files.md](../../docs/context-files.md), [rulebook-matching-pipeline.md](../../docs/rulebook-matching-pipeline.md)
+- [expression-communication-rule.md](../../docs/expression-communication-rule.md) — 内置表达规范（"说人话"）实现说明
 - [advisor-watchdog.md](../../docs/advisor-watchdog.md), [fs-scan-cache-architecture.md](../../docs/fs-scan-cache-architecture.md), [tree.md](../../docs/tree.md)
 
 ### TUI and theming
