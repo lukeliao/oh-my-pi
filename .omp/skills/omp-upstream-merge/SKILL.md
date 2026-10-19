@@ -175,6 +175,24 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     另外 napi 写出 modern.node 有瞬间 rename 窗口，build EXIT=0 后立即 stat 可能
     No such file——ls 复核再下结论。
 
+## Hard lessons (2026-10-19, v18.12.2 merge)
+
+22. **代理端口漂移会打挂 Phase 1**：本机 mihomo mixed-port 已从 7890 迁到 7897
+    （2026-09-12 起），但 `~/.gitconfig` 的 http(s).proxy 仍钉 7890 → assess/fetch 秒挂。
+    已改 7897。再遇 fetch 失败先 `ss -ltn` 查 mihomo 实际端口，勿信文档快照。
+23. **噪声历史的 catalog 冲突不可按 commit 中间态解**：v17→v18 间的 merge/清扫 commit 会把
+    上游已删的旧布局（parseKnownModel/applyAnthropicCatalogPolicy 等）整包塞回冲突 theirs 侧。
+    先算纯 fork 定制（`git diff <fork-base> ORIG_HEAD -- <dir>`）作最终态唯一真源，冲突一律向它收敛。
+    本轮 catalog 净定制 = generated-policies.ts 尾部 63 行 pin 块（GLM 1M 含 flash image /
+    MiniMax-M3 1M / ollama-cloud omit + minimax-code、opencode-go compat），收尾需逐行对账保真。
+24. **natives 构建入口已换代**：`bun --cwd=packages/natives run build` = `bazel-natives.ts host`
+    （本地 napi 路径 + 自动 version stamp + dlopen 探测；教训 9/14/17 的手打戳流程作废）；
+    baseline 变体走显式 target `bun scripts/bazel-natives.ts linux-x64-baseline --dest packages/natives/native`
+    （bazel 冷构建约 12min，需有效代理拉工具链）。embed 校验仍要求 modern+baseline 同版本。
+25. **上次合并版本以 bundle/CHANGELOG 为准，勿信教训段**：教训段停在 v18.6.2，但上一轮实际部署过
+    v18.8.6（bundle 名 `omp-18.8.6-custom.202610091956` 可查）。判断上次合并到哪，看
+    `~/.local/share/omp-bundles/` 最新 bundle 的 VERSION 或各包 CHANGELOG。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
