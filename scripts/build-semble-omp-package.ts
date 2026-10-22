@@ -268,6 +268,13 @@ export OMP_HOME="\${OMP_HOME:-$ROOT}"
 export PI_CODING_AGENT_DIR="\${PI_CODING_AGENT_DIR:-$HOME/.omp/agent}"
 export SEMBLE_RS_BIN="\${SEMBLE_RS_BIN:-$ROOT/lib/semble_rs}"
 export SEMBLE_MODEL_PATH="\${SEMBLE_MODEL_PATH:-$ROOT/models/potion-code-16M}"
+# External-fetch proxy: unified on the NUC mihomo endpoint (7897) across the
+# fleet. Caller-set values win; NO_PROXY keeps local/LAN/Tailscale destinations direct.
+if [ -z "\${HTTP_PROXY:-}" ]; then HTTP_PROXY="http://liao-nuc12dcmi9.tailad91fc.ts.net:7897"; fi
+if [ -z "\${HTTPS_PROXY:-}" ]; then HTTPS_PROXY="$HTTP_PROXY"; fi
+if [ -z "\${NO_PROXY:-}" ]; then NO_PROXY="localhost,127.0.0.1,::1,.ts.net,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12"; fi
+no_proxy="$NO_PROXY"
+export HTTP_PROXY HTTPS_PROXY NO_PROXY no_proxy
 exec "$ROOT/lib/omp" "$@"
 `;
 	const wrapperPath = path.join(binDir, "omp");
@@ -412,6 +419,7 @@ The \`omp\` wrapper sets:
 - \`PI_CODING_AGENT_DIR\` → \`~/.omp/agent\` (isolated from official omp)
 - \`SEMBLE_RS_BIN\` → \`<bundle>/lib/semble_rs\`
 - \`SEMBLE_MODEL_PATH\` → \`<bundle>/models/potion-code-16M\`
+- \`HTTP_PROXY\`/\`HTTPS_PROXY\`/\`NO_PROXY\` → NUC mihomo \`http://liao-nuc12dcmi9.tailad91fc.ts.net:7897\`（全 fleet 统一外网抓取代理；本地 / LAN / Tailscale 目标经 NO_PROXY 直连）
 
 These are only defaults; explicitly set env vars take precedence.
 
