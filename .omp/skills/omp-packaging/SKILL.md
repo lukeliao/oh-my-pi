@@ -42,7 +42,7 @@ Build a host-native omp bundle that ships the 8 `semble_*` custom tools (`semble
 | `~/.omp/cache/fastembed-runtime/<version-key>/` | Pre-seeded mnemopi embedding runtime (fastembed + onnxruntime-node); copied for each missing version-key, avoids first-use network install that can stall the agent |
 | `~/.omp/cache/fastembed/<model>/` | Pre-seeded mnemopi embedding model weights (`model_optimized.onnx` + config/tokenizer sidecars); avoids first-use HuggingFace download that can stall the agent |
 
-The `omp` wrapper automatically sets `PI_CODING_AGENT_DIR` to `$AGENT_DIR` and resolves `SEMBLE_RS_BIN` / `SEMBLE_MODEL_PATH` to bundle-local paths. It also exports `HTTP_PROXY`/`HTTPS_PROXY` → `http://liao-nuc12dcmi9.tailad91fc.ts.net:7897`（全 fleet 统一外网抓取代理，含本机；调用方已设则不覆盖）with `NO_PROXY` covering `localhost,127.0.0.1,::1,.ts.net` + RFC1918——read 工具的本地 fetch 因此可过 NUC mihomo 访问被墙站点（2026-10-19 实测 read 链路继承该 env；browser/Chromium 是否继承未验证，不作承诺）。
+The `omp` wrapper automatically sets `PI_CODING_AGENT_DIR` to `$AGENT_DIR` and resolves `SEMBLE_RS_BIN` / `SEMBLE_MODEL_PATH` to bundle-local paths. It also exports `HTTP_PROXY`/`HTTPS_PROXY` → `http://100.106.79.92:7897`（NUC mihomo 的 Tailscale IP——**用 IP 不用主机名**：desktop WSL2 的 /etc/hosts 无 MagicDNS 条目，主机名解析不了，2026-10-22 实测）with `NO_PROXY` covering `localhost,127.0.0.1,::1,.ts.net` + RFC1918——read 工具的本地 fetch 因此可过 NUC mihomo 访问被墙站点（2026-10-22 四机实测 read 链路继承该 env；browser/Chromium 是否继承未验证，不作承诺）。
 
 ## Do not do
 
