@@ -5,7 +5,8 @@ In-process builtins, ahead of PATH: {{join builtins ", "}}.
 {{#if asyncEnabled}}
 `async` defers finite results but keeps the deadline (default {{defaultTimeoutSec}}s); `timeout: 0` for watchers and long jobs.
 {{/if}}
-Don't trunc output by habit, result will be summarized and saved as an artifact.
+No `head`/`tail`/redirection; output trunc by default, full result at `artifact://<id>`.
+Blocked in bash (use the owning tool): `cat`/`head`/`tail`/`less`/`more` → `read`; `grep`/`rg`/`ag` → `grep`; `find`/`fd` → `glob`; `sed -i`/`perl -i`/`awk -i inplace` → `edit`; `echo >file`/`printf >file` → `write`. Any matching segment blocks the WHOLE compound command — split it instead of chaining.
 {{#if hasLaunch}}
 Long-lived services:
 - unique name; ready requires name; no async/timeout; pty defaults true.
