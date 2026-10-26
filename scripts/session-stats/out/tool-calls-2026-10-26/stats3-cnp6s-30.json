@@ -1,0 +1,172 @@
+{
+ "machine": "liao-CNP6S",
+ "window_days": 30,
+ "session_files": 438,
+ "sessions_with_tool_calls": 41,
+ "total_tool_calls": 4838,
+ "bad_json_lines": 0,
+ "first_ts": "2026-07-01T10:07:05.796000+00:00",
+ "last_ts": "2026-10-25T04:09:04.647000+00:00",
+ "tools": [
+  {
+   "tool": "bash",
+   "calls": 1614,
+   "sessions": 26,
+   "session_pct": 63.4
+  },
+  {
+   "tool": "read",
+   "calls": 996,
+   "sessions": 41,
+   "session_pct": 100.0
+  },
+  {
+   "tool": "grep",
+   "calls": 759,
+   "sessions": 38,
+   "session_pct": 92.7
+  },
+  {
+   "tool": "edit",
+   "calls": 737,
+   "sessions": 16,
+   "session_pct": 39.0
+  },
+  {
+   "tool": "write",
+   "calls": 186,
+   "sessions": 25,
+   "session_pct": 61.0
+  },
+  {
+   "tool": "glob",
+   "calls": 131,
+   "sessions": 29,
+   "session_pct": 70.7
+  },
+  {
+   "tool": "advise",
+   "calls": 127,
+   "sessions": 3,
+   "session_pct": 7.3
+  },
+  {
+   "tool": "yield",
+   "calls": 85,
+   "sessions": 34,
+   "session_pct": 82.9
+  },
+  {
+   "tool": "todo",
+   "calls": 67,
+   "sessions": 3,
+   "session_pct": 7.3
+  },
+  {
+   "tool": "wait",
+   "calls": 53,
+   "sessions": 8,
+   "session_pct": 19.5
+  },
+  {
+   "tool": "eval",
+   "calls": 46,
+   "sessions": 6,
+   "session_pct": 14.6
+  },
+  {
+   "tool": "task",
+   "calls": 33,
+   "sessions": 9,
+   "session_pct": 22.0
+  },
+  {
+   "tool": "ask",
+   "calls": 2,
+   "sessions": 1,
+   "session_pct": 2.4
+  },
+  {
+   "tool": "web_search",
+   "calls": 2,
+   "sessions": 2,
+   "session_pct": 4.9
+  }
+ ],
+ "note_total": "total_tool_calls counts top-level toolCall blocks only; eval_prelude/xd_route are separate",
+ "sample_end": "2026-10-26T04:00:00Z",
+ "eval_prelude": [
+  {
+   "name": "eval:print",
+   "calls": 264,
+   "sessions": 6
+  }
+ ],
+ "xd_route": [
+  {
+   "name": "semble_tree",
+   "calls": 9,
+   "sessions": 3
+  },
+  {
+   "name": "mcp__codebase_memory_mcp_list_projects",
+   "calls": 6,
+   "sessions": 3
+  },
+  {
+   "name": "mcp__codebase_memory_mcp_search_graph",
+   "calls": 2,
+   "sessions": 2
+  },
+  {
+   "name": "report_issue",
+   "calls": 2,
+   "sessions": 2
+  },
+  {
+   "name": "semble_deps",
+   "calls": 2,
+   "sessions": 1
+  },
+  {
+   "name": "recall",
+   "calls": 2,
+   "sessions": 1
+  },
+  {
+   "name": "archive",
+   "calls": 1,
+   "sessions": 1
+  }
+ ],
+ "xd_mentions_weak": [
+  {
+   "name": "semble_tree",
+   "mentions": 9
+  },
+  {
+   "name": "mcp__codebase_memory_mcp_list_projects",
+   "mentions": 6
+  },
+  {
+   "name": "mcp__codebase_memory_mcp_search_graph",
+   "mentions": 2
+  },
+  {
+   "name": "report_issue",
+   "mentions": 2
+  },
+  {
+   "name": "semble_deps",
+   "mentions": 2
+  },
+  {
+   "name": "recall",
+   "mentions": 2
+  },
+  {
+   "name": "archive",
+   "mentions": 1
+  }
+ ]
+}

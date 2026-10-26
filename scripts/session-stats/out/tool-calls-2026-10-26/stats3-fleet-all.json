@@ -1,0 +1,117 @@
+{
+  "top": 241260,
+  "prelude": [
+    {
+      "name": "eval:print",
+      "calls": 10255,
+      "sessions": 219
+    },
+    {
+      "name": "eval:browser",
+      "calls": 120,
+      "sessions": 5
+    },
+    {
+      "name": "eval:tool.read",
+      "calls": 13,
+      "sessions": 2
+    },
+    {
+      "name": "eval:tool.recall",
+      "calls": 7,
+      "sessions": 4
+    },
+    {
+      "name": "eval:completion",
+      "calls": 5,
+      "sessions": 3
+    },
+    {
+      "name": "eval:agent",
+      "calls": 4,
+      "sessions": 4
+    },
+    {
+      "name": "eval:tool.inspect_image",
+      "calls": 2,
+      "sessions": 1
+    },
+    {
+      "name": "eval:tool.retain",
+      "calls": 1,
+      "sessions": 1
+    }
+  ],
+  "route": [
+    {
+      "name": "retain",
+      "calls": 348,
+      "sessions": 71
+    },
+    {
+      "name": "browser",
+      "calls": 320,
+      "sessions": 6
+    },
+    {
+      "name": "mcp__claw_bash",
+      "calls": 95,
+      "sessions": 6
+    },
+    {
+      "name": "semble_tree",
+      "calls": 77,
+      "sessions": 44
+    },
+    {
+      "name": "report_issue",
+      "calls": 46,
+      "sessions": 41
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_search_graph",
+      "calls": 34,
+      "sessions": 9
+    },
+    {
+      "name": "inspect_image",
+      "calls": 32,
+      "sessions": 8
+    },
+    {
+      "name": "semble_deps",
+      "calls": 32,
+      "sessions": 16
+    },
+    {
+      "name": "recall",
+      "calls": 31,
+      "sessions": 22
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_get_code_snippet",
+      "calls": 26,
+      "sessions": 2
+    },
+    {
+      "name": "memory_edit",
+      "calls": 21,
+      "sessions": 9
+    },
+    {
+      "name": "ast_edit",
+      "calls": 18,
+      "sessions": 3
+    },
+    {
+      "name": "web_search",
+      "calls": 16,
+      "sessions": 1
+    },
+    {
+      "name": "semble_search",
+      "calls": 14,
+      "sessions": 10
+    }
+  ]
+}
