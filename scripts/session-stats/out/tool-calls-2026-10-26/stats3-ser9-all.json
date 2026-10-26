@@ -3,32 +3,32 @@
  "window_days": 0,
  "session_files": 686,
  "sessions_with_tool_calls": 647,
- "total_tool_calls": 93279,
+ "total_tool_calls": 93338,
  "bad_json_lines": 0,
  "first_ts": "2026-06-05T12:35:54.772000+00:00",
- "last_ts": "2026-10-26T03:39:06.208000+00:00",
+ "last_ts": "2026-10-26T03:59:28.054000+00:00",
  "tools": [
   {
    "tool": "read",
-   "calls": 28845,
+   "calls": 28853,
    "sessions": 634,
    "session_pct": 98.0
   },
   {
    "tool": "bash",
-   "calls": 20835,
+   "calls": 20850,
    "sessions": 304,
    "session_pct": 47.0
   },
   {
    "tool": "grep",
-   "calls": 13098,
+   "calls": 13100,
    "sessions": 462,
    "session_pct": 71.4
   },
   {
    "tool": "edit",
-   "calls": 8775,
+   "calls": 8800,
    "sessions": 194,
    "session_pct": 30.0
   },
@@ -40,7 +40,7 @@
   },
   {
    "tool": "advise",
-   "calls": 4858,
+   "calls": 4860,
    "sessions": 34,
    "session_pct": 5.3
   },
@@ -58,19 +58,19 @@
   },
   {
    "tool": "write",
-   "calls": 1636,
+   "calls": 1637,
    "sessions": 208,
    "session_pct": 32.1
   },
   {
    "tool": "eval",
-   "calls": 1473,
+   "calls": 1475,
    "sessions": 126,
    "session_pct": 19.5
   },
   {
    "tool": "todo",
-   "calls": 937,
+   "calls": 939,
    "sessions": 45,
    "session_pct": 7.0
   },
@@ -106,7 +106,7 @@
   },
   {
    "tool": "wait",
-   "calls": 146,
+   "calls": 148,
    "sessions": 15,
    "session_pct": 2.3
   },
@@ -266,7 +266,7 @@
  "eval_prelude": [
   {
    "name": "eval:print",
-   "calls": 4377,
+   "calls": 4385,
    "sessions": 107
   },
   {

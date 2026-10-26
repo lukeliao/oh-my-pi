@@ -1,16 +1,16 @@
 {
  "machine": "liao-NUC12DCMi9",
  "window_days": 30,
- "session_files": 1316,
+ "session_files": 1324,
  "sessions_with_tool_calls": 108,
- "total_tool_calls": 9600,
+ "total_tool_calls": 9707,
  "bad_json_lines": 0,
- "first_ts": "2026-06-08T03:05:41.727000+00:00",
- "last_ts": "2026-10-26T03:38:56.597000+00:00",
+ "first_ts": "2026-09-26T13:39:42.749000+00:00",
+ "last_ts": "2026-10-26T03:59:55.790000+00:00",
  "tools": [
   {
    "tool": "bash",
-   "calls": 2690,
+   "calls": 2726,
    "sessions": 44,
    "session_pct": 40.7
   },
@@ -22,31 +22,31 @@
   },
   {
    "tool": "read",
-   "calls": 1835,
+   "calls": 1878,
    "sessions": 101,
    "session_pct": 93.5
   },
   {
    "tool": "advise",
-   "calls": 973,
-   "sessions": 11,
-   "session_pct": 10.2
+   "calls": 974,
+   "sessions": 12,
+   "session_pct": 11.1
   },
   {
    "tool": "edit",
-   "calls": 688,
+   "calls": 690,
    "sessions": 27,
    "session_pct": 25.0
   },
   {
    "tool": "write",
-   "calls": 327,
+   "calls": 328,
    "sessions": 36,
    "session_pct": 33.3
   },
   {
    "tool": "glob",
-   "calls": 283,
+   "calls": 284,
    "sessions": 68,
    "session_pct": 63.0
   },
@@ -57,16 +57,16 @@
    "session_pct": 9.3
   },
   {
+   "tool": "eval",
+   "calls": 172,
+   "sessions": 10,
+   "session_pct": 9.3
+  },
+  {
    "tool": "yield",
    "calls": 162,
    "sessions": 78,
    "session_pct": 72.2
-  },
-  {
-   "tool": "eval",
-   "calls": 149,
-   "sessions": 9,
-   "session_pct": 8.3
   },
   {
    "tool": "todo",
@@ -110,12 +110,17 @@
  "eval_prelude": [
   {
    "name": "eval:print",
-   "calls": 153,
-   "sessions": 7
+   "calls": 218,
+   "sessions": 8
   },
   {
    "name": "eval:browser",
    "calls": 83,
+   "sessions": 1
+  },
+  {
+   "name": "eval:computer",
+   "calls": 30,
    "sessions": 1
   },
   {
@@ -131,14 +136,14 @@
    "sessions": 8
   },
   {
+   "name": "eval",
+   "calls": 6,
+   "sessions": 3
+  },
+  {
    "name": "recall",
    "calls": 6,
    "sessions": 4
-  },
-  {
-   "name": "eval",
-   "calls": 4,
-   "sessions": 2
   },
   {
    "name": "semble_search",
@@ -182,12 +187,12 @@
    "mentions": 11
   },
   {
-   "name": "recall",
+   "name": "eval",
    "mentions": 6
   },
   {
-   "name": "eval",
-   "mentions": 4
+   "name": "recall",
+   "mentions": 6
   },
   {
    "name": "semble_search",

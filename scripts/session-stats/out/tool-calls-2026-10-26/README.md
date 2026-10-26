@@ -24,11 +24,14 @@ ssh <host> 'python3 - 0  2026-10-26T04:00:00Z' < scripts/session-stats/tool-call
   `xd_mentions_weak` counts every occurrence in arguments (documentation text,
   tool descriptions…) and is not evidence of a call.
 - `sessions_with_tool_calls` is counted after the window filter, but the corpus
-  is append-only: entries written after the anchor that still carry an earlier
-  timestamp can appear in a later run. Compare runs taken at the same anchor.
-- Fleet totals: 30-day top-level 38,284; all-time 241,260. Tier-1 ranking
-  (30 d): bash 11,358 · read 8,594 · grep 6,429 · edit 3,640 · advise 3,049 ·
-  write 1,137 · glob 964 · eval 670 · wait 633 · yield 438.
+  is append-only **and flushed lazily**: entries created before the anchor can
+  still land in the file after a run, so a re-run at the same anchor grows the
+  count slightly (two runs an hour apart differed by ~0.2–0.5 %). Compare runs
+  taken close together, or treat totals as "flushed as of sampling time".
+- Fleet totals at this snapshot (strict window, one anchor): 30-day top-level
+  **38,452**; all-time **241,425**. Tier-1 ranking (30 d): bash 11,500 ·
+  read 8,714 · grep 6,471 · edit 3,689 · advise 3,032 · write 1,138 ·
+  glob 976 · eval 687 · wait 642 · yield 435.
 - `computer`, `judge`, `workpool` are zero in all three tiers over the whole
   corpus; `browser` is non-zero (top-level + eval prelude + xd route).
 
