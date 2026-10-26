@@ -192,6 +192,10 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
 25. **上次合并版本以 bundle/CHANGELOG 为准，勿信教训段**：教训段停在 v18.6.2，但上一轮实际部署过
     v18.8.6（bundle 名 `omp-18.8.6-custom.202610091956` 可查）。判断上次合并到哪，看
     `~/.local/share/omp-bundles/` 最新 bundle 的 VERSION 或各包 CHANGELOG。
+26. **上游 catalog 再生成会与 fork 的 models.json 修改撞车**（git 视为二进制，无三方合并）：
+    models.json 冲突一律取上游侧（rebase 中 `--ours`），收尾用 jq 审计目标条目（如 `.web` 名册）
+    是否已被上游修复——v18.12.6 轮我们的 deepseek 补丁上游已修，取上游侧即净；若上游未修，
+    用 `gen:models --provider <id>` 单 provider 再生成补回（只替换该 provider，其余快照不动）。
 
 ## Procedure
 
