@@ -96,7 +96,9 @@ for path in paths:
                     continue
                 ts = entry.get("timestamp")
                 t = parse_ts(ts) if ts else None
-                if end is not None and t is not None and t > end:
+                if end is not None and (t is None or t > end):
+                    continue
+                if cutoff is not None and (t is None or t < cutoff):
                     continue
                 if t is not None:
                     if first_ts is None or t < first_ts:

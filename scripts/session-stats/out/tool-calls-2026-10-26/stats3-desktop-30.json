@@ -5,7 +5,7 @@
  "sessions_with_tool_calls": 57,
  "total_tool_calls": 10357,
  "bad_json_lines": 0,
- "first_ts": "2026-06-08T03:51:52.284000+00:00",
+ "first_ts": "2026-09-29T03:02:28.445000+00:00",
  "last_ts": "2026-10-24T03:43:32.696000+00:00",
  "tools": [
   {

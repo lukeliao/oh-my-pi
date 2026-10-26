@@ -1,15 +1,21 @@
 {
-  "top30": 38284,
+  "total_calls": 38452,
+  "sessions": 314,
   "prelude": [
     {
       "name": "eval:print",
-      "calls": 1853,
-      "sessions": 36
+      "calls": 1926,
+      "sessions": 37
     },
     {
       "name": "eval:browser",
       "calls": 94,
       "sessions": 3
+    },
+    {
+      "name": "eval:computer",
+      "calls": 30,
+      "sessions": 1
     },
     {
       "name": "eval:tool.read",
@@ -59,6 +65,11 @@
       "sessions": 2
     },
     {
+      "name": "eval",
+      "calls": 7,
+      "sessions": 4
+    },
+    {
       "name": "semble_digest",
       "calls": 7,
       "sessions": 5
@@ -71,11 +82,6 @@
     {
       "name": "mcp__codebase_memory_mcp_list_projects",
       "calls": 6,
-      "sessions": 3
-    },
-    {
-      "name": "eval",
-      "calls": 5,
       "sessions": 3
     },
     {
@@ -112,40 +118,6 @@
       "name": "semble_impact",
       "calls": 1,
       "sessions": 1
-    }
-  ],
-  "mention_top": [
-    {
-      "name": "retain",
-      "n": 45
-    },
-    {
-      "name": "semble_tree",
-      "n": 42
-    },
-    {
-      "name": "semble_deps",
-      "n": 15
-    },
-    {
-      "name": "report_issue",
-      "n": 14
-    },
-    {
-      "name": "recall",
-      "n": 12
-    },
-    {
-      "name": "memory_edit",
-      "n": 10
-    },
-    {
-      "name": "semble_search",
-      "n": 9
-    },
-    {
-      "name": "semble_digest",
-      "n": 7
     }
   ]
 }

@@ -1,15 +1,21 @@
 {
-  "top": 241260,
+  "total_calls": 241425,
+  "sessions": 2408,
   "prelude": [
     {
       "name": "eval:print",
-      "calls": 10255,
-      "sessions": 219
+      "calls": 10328,
+      "sessions": 220
     },
     {
       "name": "eval:browser",
       "calls": 120,
       "sessions": 5
+    },
+    {
+      "name": "eval:computer",
+      "calls": 30,
+      "sessions": 1
     },
     {
       "name": "eval:tool.read",
@@ -112,6 +118,121 @@
       "name": "semble_search",
       "calls": 14,
       "sessions": 10
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_trace_path",
+      "calls": 13,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_list_projects",
+      "calls": 11,
+      "sessions": 7
+    },
+    {
+      "name": "semble_find_pattern",
+      "calls": 9,
+      "sessions": 7
+    },
+    {
+      "name": "semble_digest",
+      "calls": 8,
+      "sessions": 6
+    },
+    {
+      "name": "eval",
+      "calls": 7,
+      "sessions": 4
+    },
+    {
+      "name": "resolve",
+      "calls": 7,
+      "sessions": 3
+    },
+    {
+      "name": "mcp__claw_machines",
+      "calls": 6,
+      "sessions": 5
+    },
+    {
+      "name": "bash",
+      "calls": 5,
+      "sessions": 4
+    },
+    {
+      "name": "debug",
+      "calls": 4,
+      "sessions": 1
+    },
+    {
+      "name": "yield",
+      "calls": 4,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__minimax_web_search",
+      "calls": 3,
+      "sessions": 1
+    },
+    {
+      "name": "reject",
+      "calls": 3,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__claw_grep",
+      "calls": 2,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__claw_read",
+      "calls": 2,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_delete_project",
+      "calls": 2,
+      "sessions": 2
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_index_repository",
+      "calls": 2,
+      "sessions": 2
+    },
+    {
+      "name": "semble_impact",
+      "calls": 2,
+      "sessions": 2
+    },
+    {
+      "name": "archive",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "discard_placeholder",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "lsp",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_get_architecture",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "noop_probe",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "okf_validate",
+      "calls": 1,
+      "sessions": 1
     }
   ]
 }
