@@ -81,3 +81,47 @@
 | L1 | 删两行 `loadMode: "essential", // L1-experiment`，或对处理组跑 `scripts/semble-l1-control.sh liao-NUC12DCMi9` 的口径（脚本按 marker 裁剪） |
 | prompts | `git revert` 本波 commit 后重新打包 |
 | 整套 | 重装任一历史 bundle：`~/.local/share/omp-bundles/omp-18.12.6-custom.202610261049-linux-x64`（本波之前） |
+
+## 8. 追加：advisor 插话后的收尾规则（2026-10-26 晚）
+
+### 8.1 现象与机制
+
+advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryChannel()` 决定（`advisor/advise-tool.ts:118`）：
+
+| severity | 通道 | 效果 |
+|---|---|---|
+| 省略 / `nit` | `aside` | 不打断，下一步边界批量进上下文 |
+| `concern` | `steer` | 注入正在跑的回合 → 主 agent 转去处理，用户原本要的答复被推后 |
+| `blocker` | `steer` | 同上 |
+
+`isInterruptingSeverity()` 把 concern/blocker 硬编码为打断，无配置项。主 agent 的 system prompt 按设计**从不提及 advisory**（`advisor/advise-tool.ts` 注释），所以它处理完不会在答复里交代——用户既看不到卡片之外的说明，也要多问一轮才能拿到完整答复。
+
+### 8.2 采用的方案：只加常驻规则，不动 advisor 节奏
+
+用户明确要求 advisor 保持每轮审查（不启用 `advisor.reviewMode: agent-end`），因此改在**输出层**兜底：
+
+- 规则文件：`~/.omp/agent/rules/advisory-recovery.md`，frontmatter `alwaysApply: true`，四机已部署（local / cnp6s / ser9 / desktop）。
+- 规则要求：advisor 插话且已动手时，最终消息**必须是综合重述**（先完整回答用户的问题，变化体现在重述后的答案里），随后每条 note 一行
+  `Advisor: <一句主张> → <采纳 | 驳回>（<一句理由或改了什么>）`，且不允许复盘调研/重试过程。
+- 规则已含"驳回或无关也要留一行"的分支，避免建议被静默丢掉。
+
+### 8.3 为什么放 rules/ 而不是 APPEND_SYSTEM.md
+
+`discoverAppendSystemPromptFile()`（`packages/coding-agent/src/main.ts:1358`）**项目级 `APPEND_SYSTEM.md` 优先于全局**：一旦某个仓库自带 `APPEND_SYSTEM.md`，全局那份会被整体跳过。rules 是叠加注入的，不受这个优先级影响，所以规则放在 `rules/`。
+
+### 8.4 验证
+
+| 验证 | 结果 |
+|---|---|
+| 文件状态（四机） | `rule_bytes=1114`、`alwaysApply: true`、heading 计数 1、`APPEND_SYSTEM.md` 已无该段且 `# User Operating Rules` 完好 |
+| 新会话注入（本机） | `omp --print --no-tools` 让模型复述标题后的第一句 → 逐字返回规则首句 |
+| 新会话注入（cnp6s） | 同上，逐字返回 → 跨机生效 |
+| advisor 配置 | 四机全部回到默认（`reviewMode=turn`、`continueSeverity=concern`、`maxNotesPerUpdate=4`）——本轮实验性的 `continueSeverity=blocker` / `maxNotesPerUpdate=2` 已撤回，保持机群一致 |
+
+### 8.5 若仍不够，可选的下一步（都需你点头）
+
+| 旋钮 | 作用 | 代价 |
+|---|---|---|
+| `advisor.continueSeverity: blocker`（四机） | 终结回答后只有 blocker 能再起一轮 | 无审查覆盖损失，仅少一次自动续跑 |
+| `advisor.interruptSeverity`（新代码） | 把"打断阈值"变成配置，可设 blocker 但保留每轮审查 | 改上游文件 + 一次打包 |
+| `advisor.reviewMode: agent-end` | 只在最终交付时审一次 | **放弃中途纠偏**，用户已否决 |
