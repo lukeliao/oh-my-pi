@@ -94,3 +94,9 @@ packages/coding-agent/bench/boot-baseline.json
 /.bazelrc.user
 
 .parity/
+
+# Local Python virtualenvs and packaging leftovers — never commit these
+*venv*/
+*.egg-info/
+*.rej
+.omc/
