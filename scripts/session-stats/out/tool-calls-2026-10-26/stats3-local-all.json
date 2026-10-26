@@ -1,16 +1,16 @@
 {
  "machine": "liao-NUC12DCMi9",
  "window_days": 0,
- "session_files": 1316,
+ "session_files": 1324,
  "sessions_with_tool_calls": 1177,
- "total_tool_calls": 51800,
+ "total_tool_calls": 51906,
  "bad_json_lines": 0,
  "first_ts": "2026-06-08T03:05:41.727000+00:00",
- "last_ts": "2026-10-26T03:38:59.185000+00:00",
+ "last_ts": "2026-10-26T03:59:55.790000+00:00",
  "tools": [
   {
    "tool": "read",
-   "calls": 22397,
+   "calls": 22440,
    "sessions": 1097,
    "session_pct": 93.2
   },
@@ -22,7 +22,7 @@
   },
   {
    "tool": "bash",
-   "calls": 6891,
+   "calls": 6927,
    "sessions": 320,
    "session_pct": 27.2
   },
@@ -34,7 +34,7 @@
   },
   {
    "tool": "edit",
-   "calls": 2298,
+   "calls": 2300,
    "sessions": 179,
    "session_pct": 15.2
   },
@@ -46,7 +46,7 @@
   },
   {
    "tool": "glob",
-   "calls": 1754,
+   "calls": 1755,
    "sessions": 473,
    "session_pct": 40.2
   },
@@ -70,7 +70,7 @@
   },
   {
    "tool": "write",
-   "calls": 925,
+   "calls": 926,
    "sessions": 178,
    "session_pct": 15.1
   },
@@ -82,9 +82,9 @@
   },
   {
    "tool": "eval",
-   "calls": 374,
-   "sessions": 51,
-   "session_pct": 4.3
+   "calls": 397,
+   "sessions": 52,
+   "session_pct": 4.4
   },
   {
    "tool": "wait",
@@ -410,12 +410,17 @@
  "eval_prelude": [
   {
    "name": "eval:print",
-   "calls": 929,
-   "sessions": 42
+   "calls": 994,
+   "sessions": 43
   },
   {
    "name": "eval:browser",
    "calls": 96,
+   "sessions": 1
+  },
+  {
+   "name": "eval:computer",
+   "calls": 30,
    "sessions": 1
   },
   {
@@ -486,6 +491,11 @@
    "sessions": 7
   },
   {
+   "name": "eval",
+   "calls": 6,
+   "sessions": 3
+  },
+  {
    "name": "mcp__claw_machines",
    "calls": 6,
    "sessions": 5
@@ -499,11 +509,6 @@
    "name": "inspect_image",
    "calls": 4,
    "sessions": 3
-  },
-  {
-   "name": "eval",
-   "calls": 4,
-   "sessions": 2
   },
   {
    "name": "mcp__minimax_web_search",
@@ -603,6 +608,10 @@
    "mentions": 7
   },
   {
+   "name": "eval",
+   "mentions": 6
+  },
+  {
    "name": "mcp__claw_machines",
    "mentions": 6
   },
@@ -620,10 +629,6 @@
   },
   {
    "name": "semble_search",
-   "mentions": 4
-  },
-  {
-   "name": "eval",
    "mentions": 4
   },
   {
