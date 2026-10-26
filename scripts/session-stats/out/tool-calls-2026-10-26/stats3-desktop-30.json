@@ -1,0 +1,190 @@
+{
+ "machine": "DESKTOP-07JFCG5",
+ "window_days": 30,
+ "session_files": 213,
+ "sessions_with_tool_calls": 57,
+ "total_tool_calls": 10357,
+ "bad_json_lines": 0,
+ "first_ts": "2026-06-08T03:51:52.284000+00:00",
+ "last_ts": "2026-10-24T03:43:32.696000+00:00",
+ "tools": [
+  {
+   "tool": "bash",
+   "calls": 3063,
+   "sessions": 23,
+   "session_pct": 40.4
+  },
+  {
+   "tool": "read",
+   "calls": 2642,
+   "sessions": 57,
+   "session_pct": 100.0
+  },
+  {
+   "tool": "grep",
+   "calls": 1503,
+   "sessions": 57,
+   "session_pct": 100.0
+  },
+  {
+   "tool": "advise",
+   "calls": 1078,
+   "sessions": 16,
+   "session_pct": 28.1
+  },
+  {
+   "tool": "edit",
+   "calls": 1049,
+   "sessions": 14,
+   "session_pct": 24.6
+  },
+  {
+   "tool": "write",
+   "calls": 293,
+   "sessions": 27,
+   "session_pct": 47.4
+  },
+  {
+   "tool": "glob",
+   "calls": 186,
+   "sessions": 38,
+   "session_pct": 66.7
+  },
+  {
+   "tool": "wait",
+   "calls": 186,
+   "sessions": 14,
+   "session_pct": 24.6
+  },
+  {
+   "tool": "todo",
+   "calls": 140,
+   "sessions": 6,
+   "session_pct": 10.5
+  },
+  {
+   "tool": "eval",
+   "calls": 110,
+   "sessions": 6,
+   "session_pct": 10.5
+  },
+  {
+   "tool": "yield",
+   "calls": 58,
+   "sessions": 19,
+   "session_pct": 33.3
+  },
+  {
+   "tool": "task",
+   "calls": 22,
+   "sessions": 10,
+   "session_pct": 17.5
+  },
+  {
+   "tool": "ask",
+   "calls": 14,
+   "sessions": 6,
+   "session_pct": 10.5
+  },
+  {
+   "tool": "web_search",
+   "calls": 13,
+   "sessions": 6,
+   "session_pct": 10.5
+  }
+ ],
+ "note_total": "total_tool_calls counts top-level toolCall blocks only; eval_prelude/xd_route are separate",
+ "sample_end": "2026-10-26T04:00:00Z",
+ "eval_prelude": [
+  {
+   "name": "eval:print",
+   "calls": 282,
+   "sessions": 6
+  }
+ ],
+ "xd_route": [
+  {
+   "name": "retain",
+   "calls": 24,
+   "sessions": 4
+  },
+  {
+   "name": "semble_tree",
+   "calls": 5,
+   "sessions": 2
+  },
+  {
+   "name": "semble_deps",
+   "calls": 5,
+   "sessions": 3
+  },
+  {
+   "name": "semble_search",
+   "calls": 5,
+   "sessions": 1
+  },
+  {
+   "name": "semble_find_pattern",
+   "calls": 5,
+   "sessions": 3
+  },
+  {
+   "name": "report_issue",
+   "calls": 3,
+   "sessions": 3
+  },
+  {
+   "name": "semble_digest",
+   "calls": 1,
+   "sessions": 1
+  },
+  {
+   "name": "semble_impact",
+   "calls": 1,
+   "sessions": 1
+  },
+  {
+   "name": "bash",
+   "calls": 1,
+   "sessions": 1
+  }
+ ],
+ "xd_mentions_weak": [
+  {
+   "name": "retain",
+   "mentions": 24
+  },
+  {
+   "name": "semble_tree",
+   "mentions": 5
+  },
+  {
+   "name": "semble_deps",
+   "mentions": 5
+  },
+  {
+   "name": "semble_search",
+   "mentions": 5
+  },
+  {
+   "name": "semble_find_pattern",
+   "mentions": 5
+  },
+  {
+   "name": "report_issue",
+   "mentions": 3
+  },
+  {
+   "name": "semble_digest",
+   "mentions": 1
+  },
+  {
+   "name": "semble_impact",
+   "mentions": 1
+  },
+  {
+   "name": "bash",
+   "mentions": 1
+  }
+ ]
+}

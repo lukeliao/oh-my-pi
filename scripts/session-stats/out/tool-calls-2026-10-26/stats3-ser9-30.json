@@ -1,0 +1,239 @@
+{
+ "machine": "liao-SER9",
+ "window_days": 30,
+ "session_files": 686,
+ "sessions_with_tool_calls": 108,
+ "total_tool_calls": 13489,
+ "bad_json_lines": 0,
+ "first_ts": "2026-06-05T12:35:54.772000+00:00",
+ "last_ts": "2026-10-26T03:39:01.479000+00:00",
+ "tools": [
+  {
+   "tool": "bash",
+   "calls": 4082,
+   "sessions": 47,
+   "session_pct": 43.5
+  },
+  {
+   "tool": "read",
+   "calls": 3190,
+   "sessions": 104,
+   "session_pct": 96.3
+  },
+  {
+   "tool": "grep",
+   "calls": 2248,
+   "sessions": 98,
+   "session_pct": 90.7
+  },
+  {
+   "tool": "edit",
+   "calls": 1188,
+   "sessions": 30,
+   "session_pct": 27.8
+  },
+  {
+   "tool": "advise",
+   "calls": 851,
+   "sessions": 8,
+   "session_pct": 7.4
+  },
+  {
+   "tool": "glob",
+   "calls": 375,
+   "sessions": 79,
+   "session_pct": 73.1
+  },
+  {
+   "tool": "eval",
+   "calls": 357,
+   "sessions": 18,
+   "session_pct": 16.7
+  },
+  {
+   "tool": "write",
+   "calls": 330,
+   "sessions": 52,
+   "session_pct": 48.1
+  },
+  {
+   "tool": "hub",
+   "calls": 307,
+   "sessions": 18,
+   "session_pct": 16.7
+  },
+  {
+   "tool": "wait",
+   "calls": 146,
+   "sessions": 15,
+   "session_pct": 13.9
+  },
+  {
+   "tool": "yield",
+   "calls": 130,
+   "sessions": 74,
+   "session_pct": 68.5
+  },
+  {
+   "tool": "web_search",
+   "calls": 104,
+   "sessions": 18,
+   "session_pct": 16.7
+  },
+  {
+   "tool": "todo",
+   "calls": 85,
+   "sessions": 6,
+   "session_pct": 5.6
+  },
+  {
+   "tool": "task",
+   "calls": 77,
+   "sessions": 16,
+   "session_pct": 14.8
+  },
+  {
+   "tool": "recall",
+   "calls": 10,
+   "sessions": 2,
+   "session_pct": 1.9
+  },
+  {
+   "tool": "ask",
+   "calls": 9,
+   "sessions": 2,
+   "session_pct": 1.9
+  }
+ ],
+ "note_total": "total_tool_calls counts top-level toolCall blocks only; eval_prelude/xd_route are separate",
+ "sample_end": "2026-10-26T04:00:00Z",
+ "eval_prelude": [
+  {
+   "name": "eval:print",
+   "calls": 1154,
+   "sessions": 17
+  },
+  {
+   "name": "eval:browser",
+   "calls": 11,
+   "sessions": 2
+  },
+  {
+   "name": "eval:tool.read",
+   "calls": 10,
+   "sessions": 1
+  }
+ ],
+ "xd_route": [
+  {
+   "name": "retain",
+   "calls": 18,
+   "sessions": 5
+  },
+  {
+   "name": "semble_tree",
+   "calls": 17,
+   "sessions": 10
+  },
+  {
+   "name": "memory_edit",
+   "calls": 8,
+   "sessions": 2
+  },
+  {
+   "name": "report_issue",
+   "calls": 7,
+   "sessions": 7
+  },
+  {
+   "name": "semble_deps",
+   "calls": 6,
+   "sessions": 2
+  },
+  {
+   "name": "recall",
+   "calls": 4,
+   "sessions": 3
+  },
+  {
+   "name": "yield",
+   "calls": 4,
+   "sessions": 1
+  },
+  {
+   "name": "semble_digest",
+   "calls": 3,
+   "sessions": 2
+  },
+  {
+   "name": "semble_search",
+   "calls": 1,
+   "sessions": 1
+  },
+  {
+   "name": "semble_find_pattern",
+   "calls": 1,
+   "sessions": 1
+  },
+  {
+   "name": "noop_probe",
+   "calls": 1,
+   "sessions": 1
+  },
+  {
+   "name": "eval",
+   "calls": 1,
+   "sessions": 1
+  }
+ ],
+ "xd_mentions_weak": [
+  {
+   "name": "retain",
+   "mentions": 18
+  },
+  {
+   "name": "semble_tree",
+   "mentions": 17
+  },
+  {
+   "name": "memory_edit",
+   "mentions": 10
+  },
+  {
+   "name": "report_issue",
+   "mentions": 7
+  },
+  {
+   "name": "semble_deps",
+   "mentions": 6
+  },
+  {
+   "name": "recall",
+   "mentions": 4
+  },
+  {
+   "name": "yield",
+   "mentions": 4
+  },
+  {
+   "name": "semble_digest",
+   "mentions": 3
+  },
+  {
+   "name": "semble_search",
+   "mentions": 1
+  },
+  {
+   "name": "semble_find_pattern",
+   "mentions": 1
+  },
+  {
+   "name": "noop_probe",
+   "mentions": 1
+  },
+  {
+   "name": "eval",
+   "mentions": 1
+  }
+ ]
+}

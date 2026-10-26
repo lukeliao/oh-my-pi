@@ -1,0 +1,151 @@
+{
+  "top30": 38284,
+  "prelude": [
+    {
+      "name": "eval:print",
+      "calls": 1853,
+      "sessions": 36
+    },
+    {
+      "name": "eval:browser",
+      "calls": 94,
+      "sessions": 3
+    },
+    {
+      "name": "eval:tool.read",
+      "calls": 10,
+      "sessions": 1
+    },
+    {
+      "name": "eval:tool.recall",
+      "calls": 1,
+      "sessions": 1
+    }
+  ],
+  "route": [
+    {
+      "name": "retain",
+      "calls": 45,
+      "sessions": 11
+    },
+    {
+      "name": "semble_tree",
+      "calls": 42,
+      "sessions": 23
+    },
+    {
+      "name": "semble_deps",
+      "calls": 15,
+      "sessions": 7
+    },
+    {
+      "name": "report_issue",
+      "calls": 14,
+      "sessions": 14
+    },
+    {
+      "name": "recall",
+      "calls": 12,
+      "sessions": 8
+    },
+    {
+      "name": "semble_search",
+      "calls": 9,
+      "sessions": 5
+    },
+    {
+      "name": "memory_edit",
+      "calls": 8,
+      "sessions": 2
+    },
+    {
+      "name": "semble_digest",
+      "calls": 7,
+      "sessions": 5
+    },
+    {
+      "name": "semble_find_pattern",
+      "calls": 7,
+      "sessions": 5
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_list_projects",
+      "calls": 6,
+      "sessions": 3
+    },
+    {
+      "name": "eval",
+      "calls": 5,
+      "sessions": 3
+    },
+    {
+      "name": "yield",
+      "calls": 4,
+      "sessions": 1
+    },
+    {
+      "name": "mcp__codebase_memory_mcp_search_graph",
+      "calls": 2,
+      "sessions": 2
+    },
+    {
+      "name": "archive",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "bash",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "discard_placeholder",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "noop_probe",
+      "calls": 1,
+      "sessions": 1
+    },
+    {
+      "name": "semble_impact",
+      "calls": 1,
+      "sessions": 1
+    }
+  ],
+  "mention_top": [
+    {
+      "name": "retain",
+      "n": 45
+    },
+    {
+      "name": "semble_tree",
+      "n": 42
+    },
+    {
+      "name": "semble_deps",
+      "n": 15
+    },
+    {
+      "name": "report_issue",
+      "n": 14
+    },
+    {
+      "name": "recall",
+      "n": 12
+    },
+    {
+      "name": "memory_edit",
+      "n": 10
+    },
+    {
+      "name": "semble_search",
+      "n": 9
+    },
+    {
+      "name": "semble_digest",
+      "n": 7
+    }
+  ]
+}
