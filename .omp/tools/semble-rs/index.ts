@@ -6,6 +6,40 @@ import type { CustomToolFactory } from "@oh-my-pi/pi-coding-agent";
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * `semble_rs deps|impact` take `<FILE_PATH>` **relative to** `<PATH>`; an
+ * absolute `FILE_PATH` always fails with `File not found in graph: /abs/...`
+ * (measured 2026-10-26: absolute file + relative root, absolute file + absolute
+ * root, both fail; relative file + absolute root works). Models naturally pass
+ * absolute paths, so convert here instead of failing the call.
+ *
+ * `root` MUST be resolved against the subprocess CWD (`pi.cwd`), never
+ * `process.cwd()` — `runSemble` spawns the binary with `cwd: options.cwd`, so
+ * resolving against the wrong base yields a relative path that points elsewhere.
+ *
+ * A file outside `root` is an ERROR, not a reason to shrink the graph: silently
+ * narrowing `path` to the file's own directory makes `impact` report "no
+ * importers" while callers outside that directory exist, i.e. a confident wrong
+ * answer. Keep the caller's graph scope and tell them how to widen it.
+ */
+function resolveGraphTarget(
+	filePath: string,
+	root: string,
+	cwd: string,
+): { ok: true; filePath: string; root: string } | { ok: false; message: string } {
+	if (!path.isAbsolute(filePath)) return { ok: true, filePath, root };
+	const absRoot = path.resolve(cwd, root);
+	const rel = path.relative(absRoot, filePath);
+	if (rel.length > 0 && !rel.startsWith("..")) return { ok: true, filePath: rel, root };
+	return {
+		ok: false,
+		message:
+			`file_path ${filePath} is outside path ${absRoot}. Pass a file inside that root, ` +
+			`or set path to a directory that contains it (the graph is built from path, so a ` +
+			`narrower root hides callers outside it).`,
+	};
+}
+
 const exeSuffix = process.platform === "win32" ? ".exe" : "";
 
 interface ResolveBinaryOk {
@@ -271,6 +305,12 @@ function buildSembleArgs(
 			const lineText = p.lines!.join("\n") + "\n";
 			return { args, stdinText: lineText };
 		}
+		case "savings": {
+			const p = params as { verbose?: boolean };
+			const args = ["savings"];
+			if (p.verbose) args.push("--verbose");
+			return { args };
+		}
 		default:
 			return { args: [] };
 	}
@@ -507,6 +547,10 @@ export function buildSembleArgsForTest(
 	return buildSembleArgs(toolName, params, modelPath);
 }
 
+export function resolveGraphTargetForTest(filePath: string, root: string, cwd: string) {
+	return resolveGraphTarget(filePath, root, cwd);
+}
+
 // ---------------------------------------------------------------------------
 // Validate exactly-one constraint
 // ---------------------------------------------------------------------------
@@ -615,6 +659,37 @@ const factory: CustomToolFactory = (pi) => {
 			},
 		},
 
+		// ── semble_savings ─────────────────────────────────────────
+		{
+			name: "semble_savings",
+			label: "semble savings",
+			description:
+				"Show what the semble tools saved this machine: call counts and estimated tokens avoided (today / 7 days / all time). Use when asked how much token budget the code-intelligence tools actually save, or to audit whether they are being used at all.",
+			strict: true,
+			approval: "read" as const,
+			parameters: pi.zod
+				.object({
+					verbose: pi.zod.boolean().default(false),
+				})
+				.strict(),
+
+			async execute(
+				_toolCallId: string,
+				params: Record<string, unknown>,
+				_onUpdate: unknown,
+				_ctx: unknown,
+				signal?: AbortSignal,
+			) {
+				const result = await runSemble(
+					"savings",
+					params,
+					undefined,
+					{ cwd: pi.cwd, signal },
+				);
+				return wrapResult(result);
+			},
+		},
+
 		// ── semble_search ──────────────────────────────────────────
 		{
 			name: "semble_search",
@@ -623,6 +698,7 @@ const factory: CustomToolFactory = (pi) => {
 				"Find code relevant to a topic using semantic embeddings. Use when grepping would miss the right files because different variable names or phrasings are used — this searches by meaning, not text.",
 			strict: true,
 			approval: "read" as const,
+			loadMode: "essential", // L1-experiment: promote to top-level tool
 			parameters: pi.zod
 				.object({
 					query: pi.zod.string().min(1),
@@ -684,9 +760,15 @@ const factory: CustomToolFactory = (pi) => {
 				"List every file this file imports and every symbol it exports. Use BEFORE editing a file to understand its dependency graph — avoids missing imports, circular deps, or breaking downstream consumers.",
 			strict: true,
 			approval: "read" as const,
+			loadMode: "essential", // L1-experiment: promote to top-level tool
 			parameters: pi.zod
 				.object({
-					file_path: pi.zod.string().min(1),
+file_path: pi.zod
+						.string()
+						.min(1)
+						.describe(
+							"Source file path, relative to `path` (absolute paths are converted).",
+						),
 					path: pi.zod.string().default("."),
 					mode: pi.zod
 						.enum(["text", "json", "dot", "tree"])
@@ -707,13 +789,7 @@ const factory: CustomToolFactory = (pi) => {
 				_ctx: unknown,
 				signal?: AbortSignal,
 			) {
-				const result = await runSemble(
-					"deps",
-					params,
-					undefined,
-					{ cwd: pi.cwd, signal },
-				);
-				return wrapResult(result);
+				return runGraphTool("deps", params, pi.cwd, signal);
 			},
 		},
 
@@ -727,7 +803,12 @@ const factory: CustomToolFactory = (pi) => {
 			approval: "read" as const,
 			parameters: pi.zod
 				.object({
-					file_path: pi.zod.string().min(1),
+file_path: pi.zod
+						.string()
+						.min(1)
+						.describe(
+							"Source file path, relative to `path` (absolute paths are converted).",
+						),
 					path: pi.zod.string().default("."),
 					mode: pi.zod
 						.enum(["text", "json", "dot", "tree"])
@@ -748,13 +829,7 @@ const factory: CustomToolFactory = (pi) => {
 				_ctx: unknown,
 				signal?: AbortSignal,
 			) {
-				const result = await runSemble(
-					"impact",
-					params,
-					undefined,
-					{ cwd: pi.cwd, signal },
-				);
-				return wrapResult(result);
+				return runGraphTool("impact", params, pi.cwd, signal);
 			},
 		},
 
@@ -974,6 +1049,36 @@ const factory: CustomToolFactory = (pi) => {
 // ---------------------------------------------------------------------------
 // Convert internal RunSembleResult to AgentToolResult shape
 // ---------------------------------------------------------------------------
+
+
+/**
+ * Run `deps`/`impact` after resolving the graph target. A file outside the
+ * caller's root is reported as a tool error (never answered from a narrowed
+ * graph), so a truncated blast radius cannot masquerade as a complete one.
+ */
+async function runGraphTool(
+	toolName: "deps" | "impact",
+	params: Record<string, unknown>,
+	cwd: string,
+	signal?: AbortSignal,
+) {
+	const p = params as { file_path: string; path: string };
+	const target = resolveGraphTarget(p.file_path, p.path, cwd);
+	if (!target.ok) {
+		return {
+			isError: true as const,
+			content: [{ type: "text" as const, text: target.message }],
+			details: { error: target.message },
+		};
+	}
+	const result = await runSemble(
+		toolName,
+		{ ...p, file_path: target.filePath, path: target.root },
+		undefined,
+		{ cwd, signal },
+	);
+	return wrapResult(result);
+}
 
 function wrapResult(result: RunSembleResult) {
 	return {
