@@ -69,22 +69,31 @@ describe("compound command interception", () => {
 		},
 	];
 
+	it("blocks a standalone command", () => {
+		expect(checkBashInterception("git commit -m message", ["commit"], rules).block).toBe(true);
+	});
+
+	// A nudge rule fires only when the command IS that command. Blocking a single
+	// segment of a compound kills the whole line: measured 148 of 172 blocks were
+	// compound collateral against 14 standalone hits, with the other steps wasted.
+	// Refusal rules (`tool: "bash"`) keep scanning segments — see the build-discipline
+	// suite below.
 	it.each([
-		"git commit -m message",
 		"git add file && git commit -m message",
 		"git add file; git commit -m message",
 		"git add file || git commit -m message",
 		"git add file & git commit -m message",
 		"git add file\ngit commit -m message",
-	])("blocks a later command after %s", command => {
-		expect(checkBashInterception(command, ["commit"], rules).block).toBe(true);
+		"cd repo && git commit -m message",
+	])("leaves a compound command alone: %s", command => {
+		expect(checkBashInterception(command, ["commit"], rules).block).toBe(false);
 	});
 
-	it("does not intercept a downstream pipe stage that consumes piped stdin", () => {
-		// `git commit` after a single `|` reads the previous stage's stdout, so
-		// the dedicated tool cannot replace it. `||` still starts a fresh command.
+	it("does not intercept any stage of a piped or sequenced command", () => {
+		// Neither a downstream stage (it reads piped stdin) nor an `||` branch can be
+		// replaced by a dedicated tool without losing the rest of the line.
 		expect(checkBashInterception("git add file | git commit -m message", ["commit"], rules).block).toBe(false);
-		expect(checkBashInterception("git add file || git commit -m message", ["commit"], rules).block).toBe(true);
+		expect(checkBashInterception("git add file || git commit -m message", ["commit"], rules).block).toBe(false);
 	});
 
 	it("removes one or more leading environment assignments before matching", () => {
@@ -121,9 +130,9 @@ describe("compound command interception", () => {
 		]) {
 			expect(checkBashInterception(command, ["commit"], rules).block).toBe(false);
 		}
-		// <& is a redirect operator, so the & does not split the command;
-		// but when a && follows the redirect, the later command is still extracted.
-		expect(checkBashInterception("echo hi <&3 && git commit -m message", ["commit"], rules).block).toBe(true);
+		// <& is a redirect operator, so the & does not split the command; the `&&`
+		// that follows makes the line a compound, which a nudge rule leaves alone.
+		expect(checkBashInterception("echo hi <&3 && git commit -m message", ["commit"], rules).block).toBe(false);
 	});
 
 	it("does not add matches for unsupported shell syntax", () => {
@@ -140,7 +149,7 @@ describe("compound command interception", () => {
 		}
 	});
 
-	it("keeps matching a rule written for the complete original input", () => {
+	it("refuses a whole compound only through a refusal rule", () => {
 		const command = "git add file && git commit -m message";
 		const completeInputRule: BashInterceptorRule[] = [
 			{
@@ -149,7 +158,11 @@ describe("compound command interception", () => {
 				message: "Use the commit tool instead.",
 			},
 		];
-		expect(checkBashInterception(command, ["commit"], completeInputRule).block).toBe(true);
+		// A nudge rule never fires on a compound, even when it matches the whole line.
+		expect(checkBashInterception(command, ["commit"], completeInputRule).block).toBe(false);
+		// A refusal rule (tool: "bash") does — that is how hard policy keeps the line dead.
+		const refusal = [{ ...completeInputRule[0], tool: "bash" }];
+		expect(checkBashInterception(command, ["bash"], refusal).block).toBe(true);
 	});
 
 	it("does not block when the suggested tool is unavailable", () => {
@@ -214,8 +227,9 @@ describe("default grep rule and pipeline stdin", () => {
 		expect(checkBashInterception("rg pattern src", tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(true);
 	});
 
-	it("blocks a first-stage grep that produces pipeline input", () => {
-		expect(checkBashInterception("grep x file | wc -l", tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(true);
+	it("does not block a first-stage grep that produces pipeline input", () => {
+		// The echo/sh_grep cannot be replaced by the grep tool without breaking the pipe.
+		expect(checkBashInterception("grep x file | wc -l", tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(false);
 	});
 
 	it("does not block grep consuming pipeline stdin", () => {
@@ -233,10 +247,10 @@ describe("default grep rule and pipeline stdin", () => {
 		expect(checkBashInterception("printf 'x\\n' |& grep x", tools, DEFAULT_BASH_INTERCEPTOR_RULES).block).toBe(false);
 	});
 
-	it("still blocks a standalone grep sequenced after a pipeline", () => {
+	it("does not block a grep sequenced after a pipeline", () => {
 		expect(
 			checkBashInterception("cat log | tr a b && grep err file", tools, DEFAULT_BASH_INTERCEPTOR_RULES).block,
-		).toBe(true);
+		).toBe(false);
 	});
 });
 

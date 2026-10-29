@@ -125,3 +125,47 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 | `advisor.continueSeverity: blocker`（四机） | 终结回答后只有 blocker 能再起一轮 | 无审查覆盖损失，仅少一次自动续跑 |
 | `advisor.interruptSeverity`（新代码） | 把"打断阈值"变成配置，可设 blocker 但保留每轮审查 | 改上游文件 + 一次打包 |
 | `advisor.reviewMode: agent-end` | 只在最终交付时审一次 | **放弃中途纠偏**，用户已否决 |
+
+## 9. 拦截器真正放行复合命令（2026-10-29）
+
+### 9.1 为什么之前"修了还是被拦"
+
+2026-10-26 那一轮只上了**提示词**（`bash.md` 列出被拦形态 + 提醒拆开复合命令），判定逻辑没动。P3（让复合命令通过）当时按约定"先看提示词效果再改代码"。实测：10-27 仍有 8 次拦截，说明提示词管不住。
+
+### 9.2 这次的改动（`tools/bash-interceptor.ts`）
+
+判定层按"规则意图"分流，而不是对所有规则一视同仁：
+
+| 规则类型 | 判定范围 | 理由 |
+|---|---|---|
+| 引导类（`tool` 为 read/grep/glob/edit/write） | **仅当整条命令就是该命令**（`extractFlatShellCommandSegments(cmd).length === 1`） | 30d 语料里 148/172 次拦截是复合命令连坐，真阳性仅 14；杀掉一整行去纠正一段，损失远大于收益 |
+| 拒绝类（`tool: "bash"`，如项目 build 纪律 `build-discipline:*`） | 仍逐段扫描 | 这类规则要求整行不执行（裸 `cargo build` 出现在 `cd x && …` 里也必须拦） |
+
+源码级判定（`packages/coding-agent` 单测 + 直接调用）：
+
+| 命令 | 判定 | 说明 |
+|---|---|---|
+| `cd /tmp && cat /etc/hostname` | **pass** | 复合命令不再连坐（此前被拦） |
+| `cat /etc/hostname` | BLOCK | 单条命令仍是引导目标 |
+| `grep -c . /etc/hostname` | BLOCK | 同上 |
+| `true && nohup sleep 0` | BLOCK | 拒绝类规则继续逐段命中 |
+
+### 9.3 验证
+
+| 项 | 结果 |
+|---|---|
+| 单测 | `bun test test/tools/bash-interceptor.test.ts` → **73 pass / 0 fail**（含新增 6 条复合放行用例、1 条"拒绝类规则仍拦整行"用例） |
+| 类型检查 | `bun run --filter './packages/*' check:types` → EXIT=0 |
+| 格式/lint | `oxlint .` + `oxfmt --check`（本次改动的 2 个文件）通过；仓库里另有 2 个**未跟踪**的 `scripts/session-stats/interceptor_*.ts` 格式不合规，非本次改动 |
+| 部署 | 本机 / ser9 / desktop → `omp/18.12.6-custom.202610291044`；**cnp6s 当前离线（Tailscale 显示 offline，last seen 1d），恢复后需补部署** |
+| 运行时验证 | `--print` 一次性会话未复现拦截：该模式下 `ctx.toolNames` 为空，`availableTools.includes(rule.tool)` 恒假，所有规则被跳过 → 无法用它验证拦截器。**需交互式会话确认**（下次新开会话执行 `cd /tmp && cat /etc/hostname` 应通过，`cat /etc/hostname` 应被拦） |
+
+### 9.4 需要同步更新的既有产物
+
+`scripts/session-stats/interceptor_audit.ts`（未跟踪，2026-10-26 23:43 生成）把旧策略写成了断言：
+`git status && grep …`、`cd build && make -j8`（这条属拒绝类，仍应通过）等。其中**引导类夹具的期望值需改为 pass**，否则该审计会报"失败"。
+
+### 9.5 若还需要更细的控制（未做）
+
+- 段级提示而非整行拒绝（`block` → `warn`）：需要 bash 工具把警告拼到结果里，改动面更大；
+- 抽取器拒绝分段时的兜底粗切（`$(…)`/heredoc/括号占 30d 的 12.6%）：会同时改变精度与召回，需要标注支撑。
