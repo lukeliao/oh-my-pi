@@ -205,7 +205,11 @@ export function checkBashInterception(
 	// it now fires only when the command IS that command. Rules that refuse work
 	// outright (`tool: "bash"`, e.g. build discipline) keep scanning every segment,
 	// because there the whole line must not run.
-	const isCompound = extractFlatShellCommandSegments(command).length > 1;
+	// Judge the compound-ness on the ORIGINAL command: BashTool hoists a leading
+	// `cd <dir> &&` into `cwd` and re-checks the stripped remainder, which is a
+	// single segment — measuring the stripped form would re-block exactly the
+	// `cd dir && cat file` shape this rule exists to let through.
+	const isCompound = extractFlatShellCommandSegments(originalCommand).length > 1;
 
 	for (const { rule, regex } of compiled) {
 		// Only block if the suggested tool is actually available

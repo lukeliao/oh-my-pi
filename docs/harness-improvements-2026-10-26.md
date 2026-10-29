@@ -138,7 +138,7 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 
 | 规则类型 | 判定范围 | 理由 |
 |---|---|---|
-| 引导类（`tool` 为 read/grep/glob/edit/write） | **仅当整条命令就是该命令**（`extractFlatShellCommandSegments(cmd).length === 1`） | 30d 语料里 148/172 次拦截是复合命令连坐，真阳性仅 14；杀掉一整行去纠正一段，损失远大于收益 |
+| 引导类（`tool` 为 read/grep/glob/edit/write） | **仅当整条命令就是该命令**（按 `originalCommand` 判定 `extractFlatShellCommandSegments(...).length === 1`） | 30d 语料里 148/172 次拦截是复合命令连坐，真阳性仅 14；杀掉一整行去纠正一段，损失远大于收益 |
 | 拒绝类（`tool: "bash"`，如项目 build 纪律 `build-discipline:*`） | 仍逐段扫描 | 这类规则要求整行不执行（裸 `cargo build` 出现在 `cd x && …` 里也必须拦） |
 
 源码级判定（`packages/coding-agent` 单测 + 直接调用）：
@@ -154,11 +154,25 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 
 | 项 | 结果 |
 |---|---|
-| 单测 | `bun test test/tools/bash-interceptor.test.ts` → **73 pass / 0 fail**（含新增 6 条复合放行用例、1 条"拒绝类规则仍拦整行"用例） |
+| 单测 | `bun test test/tools/bash-interceptor.test.ts` → **76 pass / 0 fail**（7 条复合放行 + `originalCommand` 参数差异 + 3 条 BashTool 集成用例） |
 | 类型检查 | `bun run --filter './packages/*' check:types` → EXIT=0 |
 | 格式/lint | `oxlint .` + `oxfmt --check`（本次改动的 2 个文件）通过；仓库里另有 2 个**未跟踪**的 `scripts/session-stats/interceptor_*.ts` 格式不合规，非本次改动 |
-| 部署 | 本机 / ser9 / desktop → `omp/18.12.6-custom.202610291044`；**cnp6s 当前离线（Tailscale 显示 offline，last seen 1d），恢复后需补部署** |
-| 运行时验证 | `--print` 一次性会话未复现拦截：该模式下 `ctx.toolNames` 为空，`availableTools.includes(rule.tool)` 恒假，所有规则被跳过 → 无法用它验证拦截器。**需交互式会话确认**（下次新开会话执行 `cd /tmp && cat /etc/hostname` 应通过，`cat /etc/hostname` 应被拦） |
+| 部署 | 本机 / ser9 / desktop → `omp/18.12.6-custom.202610291052`；**cnp6s 离线（Tailscale `offline, last seen 1d`），恢复后需补部署** |
+| 运行时验证 | `--print` 一次性会话**不能**验证拦截器：该模式下 `ctx.toolNames` 为空，`availableTools.includes(rule.tool)` 恒假，连单命令都不拦。故改用 BashTool 集成测试作为行为证据；已部署二进制的最终确认需交互式会话（新开会话执行 `cd /tmp && cat /etc/hostname` 应通过，`cat /etc/hostname` 应被拦） |
+
+### 9.3b 第一版漏掉的洞：`cd X && …` 前缀会被剥离
+
+`BashTool` 会把行首 `cd <dir> &&` 提升成 `cwd` 并对**剥离后的剩余部分**再检查一次（`tools/bash.ts:1099-1101`）。第一版按 `command` 判定复合性，于是 `cd /tmp && cat /etc/hostname` 第一遍放行、第二遍以单段 `cat /etc/hostname` 重新拦下——最常见的形态根本没修好。
+
+修法：复合性一律按 **`originalCommand`** 判定（两个检查轮次看到的是同一条原始命令行）。补了 BashTool 级集成测试（拦截器开启 + `read` 可用）：
+
+| 用例 | 期望 |
+|---|---|
+| `cd packages/coding-agent && cat package.json` | **执行**，输出含包名 |
+| `cat package.json`（单命令） | 抛 `Use read instead.` |
+| `cd /tmp && nohup true`（拒绝类规则） | 仍抛错 |
+
+单测口径也覆盖了参数级差异：`checkBashInterception("cat x", …, "cd pkg && cat x")` → pass；`…, "cat x")` → block。
 
 ### 9.4 需要同步更新的既有产物
 
