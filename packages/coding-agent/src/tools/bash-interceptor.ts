@@ -182,7 +182,8 @@ function blockedResult(rule: BashInterceptorRule, originalCommand: string): Inte
  * Matching strategy:
  * 1. Whole-command match (anchored).
  * 2. Segment scan: split on `;`, `&&`, `|` and test each segment, so
- *    `cd repo; cargo build` and `cmd | tee log` are caught.
+ *    `cd repo; cargo build` and `cmd | tee log` are caught — but ONLY for
+ *    refusal rules (`tool: "bash"`). Nudge rules see the whole command alone.
  * 3. Wrapper-stripped re-match: peel known one-shot prefixes (`env X=1`,
  *    `time`, `sudo`, `nohup`, `bash -c '...'`) and re-test the inner command.
  *
@@ -198,14 +199,22 @@ export function checkBashInterception(
 ): InterceptionResult {
 	const compiled = compileRules(rules);
 	const candidates = interceptionCandidates(command);
+	// Measured 2026-10-26: 148 of 172 blocks fired on ONE segment of a compound
+	// command, so the whole line died and the other steps were wasted; only 14 of
+	// 172 were a standalone command. A "use the dedicated tool" rule is a nudge, so
+	// it now fires only when the command IS that command. Rules that refuse work
+	// outright (`tool: "bash"`, e.g. build discipline) keep scanning every segment,
+	// because there the whole line must not run.
+	const isCompound = extractFlatShellCommandSegments(command).length > 1;
 
 	for (const { rule, regex } of compiled) {
 		// Only block if the suggested tool is actually available
 		if (!availableTools.includes(rule.tool)) {
 			continue;
 		}
+		const scope = rule.tool === "bash" || !isCompound ? candidates : [];
 
-		for (const candidate of candidates) {
+		for (const candidate of scope) {
 			// A configured global or sticky regex carries state across calls.
 			regex.lastIndex = 0;
 			if (regex.test(candidate)) {
@@ -215,7 +224,7 @@ export function checkBashInterception(
 
 		// Wrapper-stripped re-match: peel known one-shot prefixes and re-test
 		// the inner command, catching the most common agent wrapper patterns.
-		for (const candidate of candidates) {
+		for (const candidate of scope) {
 			const inner = stripKnownWrappers(candidate);
 			if (inner && inner !== candidate) {
 				regex.lastIndex = 0;
