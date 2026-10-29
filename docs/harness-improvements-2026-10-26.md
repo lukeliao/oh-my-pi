@@ -138,7 +138,7 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 
 | 规则类型 | 判定范围 | 理由 |
 |---|---|---|
-| 引导类（`tool` 为 read/grep/glob/edit/write） | **仅当整条命令就是该命令**（按 `originalCommand` 判定 `extractFlatShellCommandSegments(...).length === 1`） | 30d 语料里 148/172 次拦截是复合命令连坐，真阳性仅 14；杀掉一整行去纠正一段，损失远大于收益 |
+| 引导类（`tool` 为 read/grep/glob/edit/write） | **仅当整条命令就是该命令**（按 `originalCommand` 判定 `extractFlatShellCommandSegments(...).length === 1`） | 审计（`out/interceptor-audit-90d/SUMMARY.md`，`glob 'Blocked: *'` 精确口径）在 90 天 415 条可归因拦截里测得命中位置：**非首段 256（62%）**、整条/首段 159（38%）；30 天口径为 177 条、90 天 445 条。杀掉一整行去纠正其中一段，损失大于收益 |
 | 拒绝类（`tool: "bash"`，如项目 build 纪律 `build-discipline:*`） | 仍逐段扫描 | 这类规则要求整行不执行（裸 `cargo build` 出现在 `cd x && …` 里也必须拦） |
 
 源码级判定（`packages/coding-agent` 单测 + 直接调用）：
@@ -150,6 +150,12 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 | `grep -c . /etc/hostname` | BLOCK | 同上 |
 | `true && nohup sleep 0` | BLOCK | 拒绝类规则继续逐段命中 |
 
+### 9.2b 一句口径纠正
+
+先前我引用的「30d 172 次拦截、其中 148 次连坐、真阳性 14」来自我自己的分类：过滤器是 `result_text like 'Blocked: Use the%'`（只覆盖内置规则的消息前缀，漏掉项目自定义规则），且**没有做人工误报标注**。审计随后把过滤器修正为 `glob 'Blocked: *'`（30d 179→177，90d 447→445），并明确"分拣是信号辅助，不是标注"。
+
+因此**该组数字只作指示，不再作为修复依据**；修复依据以上表引用的命中位置分布为准（62% 非首段）。是否逐条人工标注"C 组是否真该拦"仍是审计里未完成的事项。
+
 ### 9.3 验证
 
 | 项 | 结果 |
@@ -158,7 +164,8 @@ advisor 的每条建议带 severity，投递通道由 `resolveAdvisorDeliveryCha
 | 类型检查 | `bun run --filter './packages/*' check:types` → EXIT=0 |
 | 格式/lint | `oxlint .` + `oxfmt --check`（本次改动的 2 个文件）通过；仓库里另有 2 个**未跟踪**的 `scripts/session-stats/interceptor_*.ts` 格式不合规，非本次改动 |
 | 部署 | 本机 / ser9 / desktop → `omp/18.12.6-custom.202610291052`；**cnp6s 离线（Tailscale `offline, last seen 1d`），恢复后需补部署** |
-| 运行时验证 | `--print` 一次性会话**不能**验证拦截器：该模式下 `ctx.toolNames` 为空，`availableTools.includes(rule.tool)` 恒假，连单命令都不拦。故改用 BashTool 集成测试作为行为证据；已部署二进制的最终确认需交互式会话（新开会话执行 `cd /tmp && cat /etc/hostname` 应通过，`cat /etc/hostname` 应被拦） |
+| 运行时验证（已部署二进制 `…1052`） | 在启用了拦截器的目录（`refactor/act_ai_product`，项目 `.omp/config.yml` 设 `bashInterceptor.enabled: true`）跑一次性会话：`cd /tmp && cat /etc/hostname` → **实际执行并返回主机名**；`cat /etc/hostname` → **被拦**（`bash:shadowed:read`）。两条都符合新规则 |
+| 为什么早先那次实验没拦 | **已查实**：`bashInterceptor.enabled` 的注册默认值是 **`false`**（`exec/settings.ts:159`），只有项目 `.omp/config.yml` 显式开启才生效；早先的 `--print` 实验在 `/tmp` 下运行，没有项目配置，拦截器根本没启用。**此前写的"`ctx.toolNames` 为空"是猜测，已删除** |
 
 ### 9.3b 第一版漏掉的洞：`cd X && …` 前缀会被剥离
 
