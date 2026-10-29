@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { fileURLToPath } from "node:url";
 import type { AgentToolContext } from "@oh-my-pi/pi-agent-core";
 import { validateToolArguments } from "@oh-my-pi/pi-ai/utils/validation";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
@@ -7,6 +8,8 @@ import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
 import { checkBashInterception } from "@oh-my-pi/pi-coding-agent/tools/bash-interceptor";
 import { BashTool, type BashToolInput } from "@oh-my-pi/pi-coding-agent/tools/bash";
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
+
+const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
 function createBashTool(rules: BashInterceptorRule[]): BashTool {
 	const session = {
@@ -17,6 +20,7 @@ function createBashTool(rules: BashInterceptorRule[]): BashTool {
 			"bash.autoBackground.enabled": false,
 			"bash.autoBackground.thresholdMs": 60_000,
 		}),
+		cwd: REPO_ROOT,
 		getSessionFile: () => null,
 	} as unknown as ToolSession;
 
@@ -40,7 +44,10 @@ describe("BashTool interception", () => {
 		).rejects.toThrow("Do not hide directory changes");
 	});
 
-	it("checks the cwd-normalized command after leading cd normalization", async () => {
+	it("runs a cd-prefixed compound instead of blocking its stripped remainder", async () => {
+		// BashTool hoists `cd <dir> &&` into `cwd` and re-checks `cat package.json`,
+		// which is a single segment. Compound-ness MUST be judged on the original
+		// command, or this shape stays blocked — the exact case the scope rule targets.
 		const tool = createBashTool([
 			{
 				pattern: "^\\s*cat\\s+",
@@ -49,14 +56,50 @@ describe("BashTool interception", () => {
 			},
 		]);
 
-		const command = "cd packages/coding-agent && cat package.json";
-		await expect(
-			tool.execute("tool-call", { command }, undefined, undefined, {
-				toolNames: ["read"],
-			} as AgentToolContext),
-		).rejects.toThrow(
-			`Use read instead.\n\nDeterministic policy (bash:shadowed:read): retrying this command, or any bash variant of it, will be blocked again.\n\nOriginal command: ${command}`,
+		const result = await tool.execute(
+			"tool-call",
+			{ command: "cd packages/coding-agent && cat package.json" },
+			undefined,
+			undefined,
+			{ toolNames: ["bash", "read"] } as AgentToolContext,
 		);
+		const first = result.content[0];
+		expect(first && "text" in first ? first.text : "").toContain("@oh-my-pi/pi-coding-agent");
+	});
+
+	it("still blocks a standalone cat when read is available", async () => {
+		const tool = createBashTool([
+			{
+				pattern: "^\\s*cat\\s+",
+				tool: "read",
+				message: "Use read instead.",
+			},
+		]);
+
+		await expect(
+			tool.execute("tool-call", { command: "cat package.json" }, undefined, undefined, {
+				toolNames: ["bash", "read"],
+			} as AgentToolContext),
+		).rejects.toThrow("Use read instead.");
+	});
+
+	it("still blocks a refusal rule inside a compound", async () => {
+		// Refusal rules (`tool: "bash"`, e.g. project build discipline) must keep
+		// scanning every segment: the whole line must not run.
+		const tool = createBashTool([
+			{
+				pattern: "^\\s*nohup\\s+",
+				tool: "bash",
+				policyKey: "test:no-nohup",
+				message: "Do not use nohup.",
+			},
+		]);
+
+		await expect(
+			tool.execute("tool-call", { command: "cd /tmp && nohup true" }, undefined, undefined, {
+				toolNames: ["bash", "read"],
+			} as AgentToolContext),
+		).rejects.toThrow("Do not use nohup.");
 	});
 });
 
@@ -163,6 +206,16 @@ describe("compound command interception", () => {
 		// A refusal rule (tool: "bash") does — that is how hard policy keeps the line dead.
 		const refusal = [{ ...completeInputRule[0], tool: "bash" }];
 		expect(checkBashInterception(command, ["bash"], refusal).block).toBe(true);
+	});
+
+	it("judges compound-ness on the original command, not the stripped one", () => {
+		// `BashTool` re-checks the cd-stripped remainder, so the interceptor can be
+		// handed a single-segment command whose original line was a compound.
+		const catRule: BashInterceptorRule[] = [{ pattern: "^\\s*cat\\s+", tool: "read", message: "Use read instead." }];
+		expect(checkBashInterception("cat package.json", ["read"], catRule, "cd pkg && cat package.json").block).toBe(
+			false,
+		);
+		expect(checkBashInterception("cat package.json", ["read"], catRule, "cat package.json").block).toBe(true);
 	});
 
 	it("does not block when the suggested tool is unavailable", () => {
