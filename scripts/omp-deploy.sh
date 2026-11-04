@@ -92,3 +92,33 @@ if [ "$fail" -ne 0 ]; then
 	echo "version mismatch detected — fix the missing/incorrect machine before proceeding" >&2
 	exit 1
 fi
+
+# Bundles accumulate ~1.3G each (binary + natives + model + caches); after a
+# verified deploy every older one is dead weight and has repeatedly misled
+# version checks. Keep the deployed bundle plus any bundle a live process still
+# maps, delete the rest. Opt out with OMP_DEPLOY_PRUNE=0.
+prune_bundles() { # $1 = bundle dir name to keep; runs against $HOME on this host
+	local keep="$1" removed=0 n
+	cd "$HOME/.local/share/omp-bundles" 2>/dev/null || return 0
+	for d in omp-*/; do
+		[ -d "$d" ] || continue
+		n="${d%/}"
+		[ "$n" = "$keep" ] && continue
+		if pgrep -f "omp-bundles/$n/lib/omp" >/dev/null 2>&1; then
+			echo "  keep (live): $n"
+			continue
+		fi
+		rm -rf -- "$n" && removed=$((removed + 1)) && echo "  removed: $n"
+	done
+	printf '  pruned=%s; remaining=%s dirs, %s\n' "$removed" "$(ls -1 | wc -l)" "$(du -sh . | cut -f1)"
+}
+
+if [ "${OMP_DEPLOY_PRUNE:-1}" = "1" ]; then
+	echo "[prune] keeping only $BUNDLE_NAME (plus bundles a live process maps)"
+	prune_bundles "$BUNDLE_NAME"
+	for host in "${REMOTES[@]}"; do
+		echo "  -> $host"
+		timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "$(declare -f prune_bundles); prune_bundles '$BUNDLE_NAME'" ||
+			echo "  prune failed on $host (ignored)" >&2
+	done
+fi
