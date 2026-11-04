@@ -122,9 +122,11 @@ async function build() {
 	console.log("[1/4] Building semble_rs...");
 	await spawn(["cargo", "build", "--release", "--manifest-path", "../semble_rs/Cargo.toml"], repoRoot);
 
-	// 2. Generate tool-views.generated.js
-	console.log("[2/4] Generating tool-views.generated.js...");
-	await spawn(["bun", "--cwd=packages/collab-web", "run", "gen:tool-views"], repoRoot);
+	// 2. Regenerate the export viewer bundle. Upstream v18.14 replaced the
+	// `gen:tool-views` script with `gen:export-viewer`; `--write` keeps this
+	// build self-healing when viewer inputs changed since the last commit.
+	console.log("[2/4] Generating export viewer bundle...");
+	await spawn(["bun", "--cwd=packages/collab-web", "run", "gen:export-viewer", "--write"], repoRoot);
 
 	// 3. Build natives
 	console.log("[3/4] Building native addons...");

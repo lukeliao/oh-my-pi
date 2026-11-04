@@ -105,3 +105,6 @@ packages/coding-agent/bench/boot-baseline.json
 *.egg-info/
 *.rej
 .omc/
+
+# build artifact written by `gen:export-viewer` (upstream tracks only the JSON)
+packages/coding-agent/src/export/html/tool-views.generated.js

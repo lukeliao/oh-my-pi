@@ -197,6 +197,30 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     是否已被上游修复——v18.12.6 轮我们的 deepseek 补丁上游已修，取上游侧即净；若上游未修，
     用 `gen:models --provider <id>` 单 provider 再生成补回（只替换该 provider，其余快照不动）。
 
+## Hard lessons (2026-11-04, v18.16.0 merge)
+
+27. **Bun ≥ 1.4.4 是硬门槛（18.13.3 起）**：用 1.3.14 编译的二进制启动即报
+    `Bun runtime must be >= 1.4.4`，四机装上去就不可用。`bun upgrade` 可能返回
+    `HTTPForbidden`——改走官方脚本：`curl -fsSL https://bun.com/install | bash`（带代理），
+    装到 `~/.bun/bin/bun`（不走 sudo）。升级后必须 `bun install` + 重新打包，再部署。
+28. **打包脚本的 viewer 生成步被上游改名**：`packages/collab-web` 的 `gen:tool-views` 在
+    18.14 已换成 `gen:export-viewer`（且 `--write` 才写文件，默认是陈旧性校验）。
+    `bun install` 的 prepare 也会跑该校验，生成物与提交版本不一致时 install 直接失败。
+29. **bash 审批路径上游已自带 interception**：v18.16 的 `BashTool#interception()`（返回
+    message 字符串）与我们的 WS2 规则/escalation 同处 `approval()` 开头。合并取值：
+    保留上游 helper 但改成返回 `InterceptionResult` 对象（含 policyKey/suggestedTool），
+    把 extraPatterns 并入其规则集，escalation 计数留在 execute 路径。
+30. **死代码随上游删除而失效**：`hub` 工具在 18.4 已删，我们 `validation.ts` 的
+    `healMissingHubStartOp`（引用已消失的 `isPlainRecord`）变成死代码——直接删除，
+    不要为它补 helper。
+31. **`ToolError` 的导入路径以 `@oh-my-pi/pi-tui/tools/tool-errors` 为准**（coding-agent
+    的 `tools/tool-errors` 只有 worker 相关导出）。合并测试文件时按上游用法核对，别只取一侧。
+32. **18.14 起 provider 限定选择器必须精确命中模型 ID/别名**（近似命中改为报错）：四机
+    config.yml 的 `modelRoles`/`web` 链要在部署后实测（`omp search --model web/deepseek`
+    与一个 chat 会话各一次）。
+33. **`omp-deploy.sh` 支持 `OMP_DEPLOY_REMOTES` 覆盖**（默认仍是三台远端）：某台离线时用
+    `OMP_DEPLOY_REMOTES="hostA hostB" ./scripts/omp-deploy.sh <bundle>` 跳过它并在报告里标注。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
