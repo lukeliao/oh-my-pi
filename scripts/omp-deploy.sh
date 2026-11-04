@@ -44,24 +44,47 @@ for host in "${REMOTES[@]}"; do
 	timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" "cd ~/.local/share/omp-bundles/$BUNDLE_NAME && ./install.sh --force"
 done
 
-echo "[3/4] version consistency check (all four must match)"
+echo "[3/4] version consistency check (all four must match, resolved through the login shell)"
 expected=""
 fail=0
-for host in local "${REMOTES[@]}"; do
-	if [ "$host" = "local" ]; then
-		ver=$("$HOME/.local/bin/omp" --version)
+check_host() { # $1 = label, $2 = "local" | ssh host
+	local out path ver resolved
+	if [ "$2" = "local" ]; then
+		out=$(bash -ic 'p=$(command -v omp); printf "%s\n" "$p"; omp --version; readlink -f "$p"' 2>/dev/null || true)
 	else
-		# single-quoted: $HOME must expand on the REMOTE host (desktop runs as
-		# act_ai_server with a different home than the local user)
-		ver=$(timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$host" '$HOME/.local/bin/omp --version')
+		# single-quoted: $HOME/PATH must expand on the REMOTE host (desktop runs
+		# as act_ai_server with a different home than the local user)
+		out=$(timeout "$SSH_CMD_TIMEOUT" ssh "${SSH_OPTS[@]}" "$2" 'bash -ic "p=\$(command -v omp); printf \"%s\n\" \"\$p\"; omp --version; readlink -f \"\$p\"" 2>/dev/null' || true)
 	fi
-	echo "  $host: $ver"
+	path=$(printf '%s\n' "$out" | sed -n '1p')
+	ver=$(printf '%s\n' "$out" | sed -n '2p')
+	resolved=$(printf '%s\n' "$out" | sed -n '3p')
+	[ -n "$resolved" ] || resolved="$path"
+	if [ -z "$path" ] || [ -z "$ver" ]; then
+		echo "  $1: NO omp RESOLVED in a login shell" >&2
+		fail=1
+		return
+	fi
+	echo "  $1: $ver  ($path -> $resolved)"
+	# Resolve symlinks: ~/.local/bin/omp is a symlink to the bundle wrapper, so a
+	# stale ~/.bun/bin/omp or a distro package would shadow the deployed bundle
+	# and the version string alone still looks right.
+	case "$resolved" in
+		*"/omp-bundles/$BUNDLE_NAME/bin/omp") : ;;
+		*)
+			echo "  SHADOWED on $1: 'omp' resolves to $resolved, not omp-bundles/$BUNDLE_NAME/bin/omp" >&2
+			fail=1
+			;;
+	esac
 	if [ -z "$expected" ]; then
 		expected="$ver"
 	elif [ "$ver" != "$expected" ]; then
-		echo "  MISMATCH on $host (expected $expected)" >&2
+		echo "  MISMATCH on $1 (expected $expected)" >&2
 		fail=1
 	fi
+}
+for host in local "${REMOTES[@]}"; do
+	check_host "$host" "$host"
 done
 
 echo "[4/4] done"
