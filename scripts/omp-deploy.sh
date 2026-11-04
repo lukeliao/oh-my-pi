@@ -7,7 +7,9 @@ set -euo pipefail
 BUNDLE_DIR="${1:?usage: omp-deploy.sh <bundle_dir>}"
 BUNDLE_DIR="$(cd "$BUNDLE_DIR" && pwd)"
 BUNDLE_NAME="$(basename "$BUNDLE_DIR")"
-REMOTES=(liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop)
+# Override to deploy a subset (e.g. when a machine is offline):
+#   OMP_DEPLOY_REMOTES="liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net" ./scripts/omp-deploy.sh <bundle>
+read -r -a REMOTES <<<"${OMP_DEPLOY_REMOTES:-liao-cnp6s.tailad91fc.ts.net liao-ser9.tailad91fc.ts.net desktop}"
 
 # Timeouts (seconds) bounding every remote operation. ConnectTimeout only
 # bounds the SSH handshake — the remote mkdir/install.sh/version commands and
