@@ -44,6 +44,24 @@ Build a host-native omp bundle that ships the 9 `semble_*` custom tools (`semble
 
 The `omp` wrapper automatically sets `PI_CODING_AGENT_DIR` to `$AGENT_DIR` and resolves `SEMBLE_RS_BIN` / `SEMBLE_MODEL_PATH` to bundle-local paths. It also exports `HTTP_PROXY`/`HTTPS_PROXY` → `http://100.106.79.92:7897`（NUC mihomo 的 Tailscale IP——**用 IP 不用主机名**：desktop WSL2 的 /etc/hosts 无 MagicDNS 条目，主机名解析不了，2026-10-22 实测）with `NO_PROXY` covering `localhost,127.0.0.1,::1,.ts.net` + RFC1918——read 工具的本地 fetch 因此可过 NUC mihomo 访问被墙站点（2026-10-22 四机实测 read 链路继承该 env；browser/Chromium 是否继承未验证，不作承诺）。
 
+## Fleet deploy (`scripts/omp-deploy.sh`)
+
+`./scripts/omp-deploy.sh <bundle-dir>` installs locally, rsyncs the bundle to
+cnp6s / ser9 / desktop, runs `install.sh --force` there, then verifies versions.
+
+- **The version check resolves what the user actually runs.** It asks a login shell
+  for `command -v omp`, follows the symlink with `readlink -f`, and requires the
+  result to be `omp-bundles/<this bundle>/bin/omp`. A stale npm/bun-global `omp`
+  earlier on PATH fails the deploy with `SHADOWED on <host>` instead of silently
+  reporting parity (2026-11-04: desktop ran a five-month-old 16.0.1 from
+  `~/.bun/bin` while `~/.local/bin/omp` pointed at the new bundle).
+- **Old bundles are pruned after the check.** Each bundle is ~1.3G and they had
+  grown to 128 / 130G across the fleet. The deploy keeps the deployed bundle plus
+  any bundle a live process still maps (`pgrep -f "omp-bundles/<n>/lib/omp"`) and
+  deletes the rest; `OMP_DEPLOY_PRUNE=0` opts out.
+- `OMP_DEPLOY_REMOTES="hostA hostB"` deploys a subset (e.g. a machine is offline) —
+  call out the skipped host in the report and deploy it once it is back.
+
 ## Do not do
 
 - Do not run `scripts/release.ts` (commits, tags, pushes — that is the official release path).
