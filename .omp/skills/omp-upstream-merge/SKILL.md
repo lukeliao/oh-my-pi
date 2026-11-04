@@ -220,6 +220,18 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     与一个 chat 会话各一次）。
 33. **`omp-deploy.sh` 支持 `OMP_DEPLOY_REMOTES` 覆盖**（默认仍是三台远端）：某台离线时用
     `OMP_DEPLOY_REMOTES="hostA hostB" ./scripts/omp-deploy.sh <bundle>` 跳过它并在报告里标注。
+34. **版本一致性必须按「用户实际解析到的二进制」校验，不能只看安装软链**：2026-11-04
+    desktop 上 `~/.local/bin/omp` 明明指向 18.16.0，但交互式 shell 的 PATH 里
+    `~/.bun/bin/omp`（6 月的 npm 全局 **16.0.1**）排在前面，用户跑到的其实是 5 个月前的版本，
+    而旧校验只跑 `~/.local/bin/omp --version` 就报了「四机一致」。现在脚本在**登录/交互 shell**
+    里取 `command -v omp`、`readlink -f` 解析后要求落在 `omp-bundles/<本次 bundle>/bin/omp`，
+    否则 `SHADOWED on <host>` 且部署失败。排查同类问题时第一步永远是
+    `bash -ic 'command -v omp; omp --version'`（非交互 ssh 的 PATH 不代表用户 PATH）。
+35. **bundle 会堆积成灾难，部署后要 prune**：每个 bundle ~1.3G（231MB 二进制 + natives + 模型 +
+    fastembed 缓存），2026-11-04 清出 **128 个 / 130G**（最早到 17.1.8），旧包也是版本误判的来源。
+    脚本现在在一致性校验通过后自动清理：保留本次 bundle + 任何仍有活跃进程映射的包
+    （`pgrep -f "omp-bundles/<n>/lib/omp"`），其余删除；`OMP_DEPLOY_PRUNE=0` 关闭。
+    本机多留的旧包要等对应会话重启后才会在下次部署时被回收。
 
 ## Procedure
 
@@ -287,8 +299,12 @@ bun run check:rs
    ```bash
    ./scripts/omp-deploy.sh ~/.local/share/omp-bundles/omp-<version>-linux-x64
    ```
-   脚本自动完成：本机 install → rsync + install 到 cnp6s / ser9 / desktop → 四机版本一致性校验
-   （任一不一致立即失败退出，须先补装再继续）。
+   脚本自动完成：本机 install → rsync + install 到 cnp6s / ser9 / desktop →
+   **按登录 shell 真实解析**跑四机版本校验（`command -v omp` + `readlink -f` 必须落在本次
+   bundle 上，否则 `SHADOWED` 失败）→ 一致性通过后 **prune 旧 bundle**（保留本次 + 仍有活跃
+   进程映射的包）。
+   - 某台离线：`OMP_DEPLOY_REMOTES="hostA hostB" ...` 跳过它，报告里单独标注待补装；
+   - 不想清理旧包：`OMP_DEPLOY_PRUNE=0`。
    Skip `agx_orin` (ARM64 — needs cross-compile with `CROSS_TARGET=linux-arm64`).
 
 ### Phase 5: Commit & Push
