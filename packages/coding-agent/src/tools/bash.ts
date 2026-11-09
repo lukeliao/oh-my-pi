@@ -635,35 +635,6 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 			};
 		}
 		const rawPatterns = cfgBashPatterns.get(this.session.settings);
-
-		// WS2 permission rules run before the legacy bash patterns: deny blocks,
-		// ask prompts through the standard approval flow, allow skips the prompt.
-		// With no rules configured this is a no-op and behavior is unchanged.
-		const permissionRules = getPermissionRules(cfgPermissionRules.get(this.session.settings));
-		const permissionDecision = evaluateBashRules(permissionRules, command);
-		if (permissionDecision.action === "deny") {
-			return {
-				tier: "exec",
-				override: true,
-				policy: "deny",
-				reason: permissionDecision.matched
-					? `Blocked by permission rule: ${permissionDecision.matched.match}`
-					: "Blocked by permission rule: dynamic bash command",
-			};
-		}
-		if (permissionDecision.action === "ask") {
-			return {
-				tier: "exec",
-				override: true,
-				policy: "prompt",
-				reason: permissionDecision.matched
-					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
-					: "Prompt required by permission rule",
-			};
-		}
-		if (permissionDecision.action === "allow") {
-			return { tier: "write", policy: "allow" };
-		}
 		const patternRules = getBashApprovalPatternRules(rawPatterns);
 		const shell = cfgBashAllowCompoundCommands.get(this.session.settings)
 			? this.session.settings.getShellConfig().shell
@@ -688,6 +659,22 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				reason: `Blocked by bash pattern: ${denied.rule.match}`,
 			};
 		}
+		// WS2 permission rules are evaluated only after the operator's pattern and
+		// authority deny above: a weaker WS2 rule must never loosen an operator
+		// deny. `ask` and `allow` are deferred to the points below so they can
+		// still lose to an operator prompt or critical pattern.
+		const permissionRules = getPermissionRules(cfgPermissionRules.get(this.session.settings));
+		const permissionDecision = evaluateBashRules(permissionRules, command);
+		if (permissionDecision.action === "deny") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "deny",
+				reason: permissionDecision.matched
+					? `Blocked by permission rule: ${permissionDecision.matched.match}`
+					: "Blocked by permission rule: dynamic bash command",
+			};
+		}
 		const prompted =
 			authorityDecision.kind === "prompt" ? authorityDecision : decision.kind === "prompt" ? decision : undefined;
 		if (prompted) {
@@ -702,6 +689,16 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		if (!compoundSegments && criticalCommand) {
 			return { tier: "exec", override: true, reason: "Critical pattern detected" };
 		}
+		if (permissionDecision.action === "ask") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "prompt",
+				reason: permissionDecision.matched
+					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
+					: "Prompt required by permission rule",
+			};
+		}
 		if (compoundSegments) {
 			for (const segment of compoundSegments) {
 				const literalCommand = segment.argv.join(" ");
@@ -710,6 +707,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				}
 			}
 		}
+		if (permissionDecision.action === "allow") return { tier: "write", policy: "allow" };
 		if (decision.kind === "allow") return { tier: "write", policy: "allow" };
 		return "exec";
 	};
