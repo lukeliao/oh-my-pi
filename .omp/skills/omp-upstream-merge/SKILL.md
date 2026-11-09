@@ -235,11 +235,18 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
 
 ## Hard lessons (2026-11-09, v18.18.3 merge)
 
-36. **18.18.1 起 `bash.patterns` 有"操作员授权链"**：`approval()` 里新增
-    `rawPatterns` + `grantAuthority()` 比较（项目层可以收紧、不能放宽操作员的 deny/prompt），
-    且 deny 规则在 `;`/`|`/`&&` 复合行任意段命中即拦。合并我们的 WS2 权限规则时：保留上游
-    整块授权逻辑，把 WS2 的 deny/ask/allow 前置到 `patternRules` 之前，`patternRules` 用
-    `getBashApprovalPatternRules(rawPatterns)` 构造——不要用 ours 覆盖整段，会丢授权链。
+36. **18.18.1 起 `bash.patterns` 的规则形状与授权链都变了**：
+    - 规则是 **`{ match: <glob>, approval: "allow"|"prompt"|"deny" }`**（`*` 通配、整串锚定），
+      不再是 `{ pattern: <regex> }`——沿用旧形状的规则会被 `getBashApprovalPatternRules`
+      静默丢弃（我们的 fleet config 未使用该键，已核 0 处）。
+    - `approval()` 里有 `rawPatterns` + `grantAuthority()` 比较（项目层可收紧、不能放宽操作员
+      deny/prompt），deny 在 `;`/`|`/`&&` 复合行任意段命中即拦。
+    - **合并我们的 WS2 `permission.rules` 时，deny/prompt 的 operator 判定必须先算**：WS2 的
+      `ask`/`allow` 只能在其后生效，否则 WS2 allow 会绕过操作员 deny（2026-11-09 实测复现并修复，
+      回归测试见 `test/tools/bash-approval-precedence.test.ts` 的 6 条用例）。
+    - 另一条易错语义（我们 2026-10-26 的策略）：nudge 类规则（`tool: "read"/"write"` 等）**只在
+      命令本身就是那条命令时**触发，复合行不再整行拦截；测试断言要按这个语义写
+      （`ls; echo hi > out.txt` 不拦、`echo hi > out.txt` 拦）。
 37. **18.18.3 把 `ask` 工具改成 `{html}` 表单**（`questions[]`、QuestionResult、"Other"/"Chat"
     路径全删；`AskToolDetails` 变成 `{answers[], timedOut?}`）。agent 侧调用形态变了：
     文档/skill/提示词里教"用 ask 提 questions 数组"的地方要更新；我们的定制层不依赖它，

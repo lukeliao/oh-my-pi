@@ -698,11 +698,17 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				reason: (interception.message ?? "Command blocked").replace(/^Blocked:\s*/u, ""),
 			};
 		}
+<<<<<<< HEAD
 		const { session: policy, authority } = this.#patternPolicies();
+=======
+		const rawPatterns = cfgBashPatterns.get(this.session.settings);
+		const patternRules = getBashApprovalPatternRules(rawPatterns);
+>>>>>>> 03123a96fc3 (fix(bash): keep operator bash.patterns deny/prompt ahead of WS2 rules)
 		const shell = cfgBashAllowCompoundCommands.get(this.session.settings)
 			? this.session.settings.getShellConfig().shell
 			: undefined;
 		const compoundSegments = shell && isPosixShell(shell) ? extractLiteralAndChainSegments(command) : null;
+<<<<<<< HEAD
 		const decision = resolveBashPatternDecision(command, compoundSegments, policy.rules, policy.allowedEnvVars);
 		// Project layers may tighten the operator's `bash.patterns`, never loosen
 		// them: an operator deny or prompt still applies under a project allow.
@@ -710,6 +716,17 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 			authority === policy
 				? decision
 				: resolveBashPatternDecision(command, compoundSegments, authority.rules, authority.allowedEnvVars);
+=======
+		const decision = resolveBashPatternDecision(command, compoundSegments, patternRules);
+		// Project layers may tighten the operator's `bash.patterns`, never loosen
+		// them: an operator deny or prompt still applies under a project allow.
+		const authoritySettings = this.session.settings.grantAuthority?.();
+		const rawAuthorityPatterns = authoritySettings ? cfgBashPatterns.get(authoritySettings) : rawPatterns;
+		const authorityDecision =
+			rawAuthorityPatterns === rawPatterns
+				? decision
+				: resolveBashPatternDecision(command, compoundSegments, getBashApprovalPatternRules(rawAuthorityPatterns));
+>>>>>>> 03123a96fc3 (fix(bash): keep operator bash.patterns deny/prompt ahead of WS2 rules)
 		const denied =
 			authorityDecision.kind === "deny" ? authorityDecision : decision.kind === "deny" ? decision : undefined;
 		if (denied) {
@@ -720,8 +737,15 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				reason: `Blocked by bash pattern: ${denied.rule.match}`,
 			};
 		}
+<<<<<<< HEAD
 		// WS2 permission rules: an explicit deny is honoured before any pattern
 		// prompt/allow below, so a weaker project rule can never loosen it.
+=======
+		// WS2 permission rules are evaluated only after the operator's pattern and
+		// authority deny above: a weaker WS2 rule must never loosen an operator
+		// deny. `ask` and `allow` are deferred to the points below so they can
+		// still lose to an operator prompt or critical pattern.
+>>>>>>> 03123a96fc3 (fix(bash): keep operator bash.patterns deny/prompt ahead of WS2 rules)
 		const permissionRules = getPermissionRules(cfgPermissionRules.get(this.session.settings));
 		const permissionDecision = evaluateBashRules(permissionRules, command);
 		if (permissionDecision.action === "deny") {
@@ -748,6 +772,16 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 		if (!compoundSegments && criticalCommand) {
 			return { tier: "exec", override: true, reason: "Critical pattern detected" };
 		}
+		if (permissionDecision.action === "ask") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "prompt",
+				reason: permissionDecision.matched
+					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
+					: "Prompt required by permission rule",
+			};
+		}
 		if (compoundSegments) {
 			for (const segment of compoundSegments) {
 				const literalCommand = segment.argv.join(" ");
@@ -756,6 +790,7 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				}
 			}
 		}
+<<<<<<< HEAD
 		// `ask`/`allow` come last: they must lose to an operator prompt, a
 		// critical pattern, and any deny above.
 		if (permissionDecision.action === "ask") {
@@ -768,6 +803,8 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 					: "Prompt required by permission rule",
 			};
 		}
+=======
+>>>>>>> 03123a96fc3 (fix(bash): keep operator bash.patterns deny/prompt ahead of WS2 rules)
 		if (permissionDecision.action === "allow") return { tier: "write", policy: "allow" };
 		if (decision.kind === "allow") return { tier: "write", policy: "allow" };
 		return "exec";
