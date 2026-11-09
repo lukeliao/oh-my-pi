@@ -233,6 +233,22 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     （`pgrep -f "omp-bundles/<n>/lib/omp"`），其余删除；`OMP_DEPLOY_PRUNE=0` 关闭。
     本机多留的旧包要等对应会话重启后才会在下次部署时被回收。
 
+## Hard lessons (2026-11-09, v18.18.3 merge)
+
+36. **18.18.1 起 `bash.patterns` 有"操作员授权链"**：`approval()` 里新增
+    `rawPatterns` + `grantAuthority()` 比较（项目层可以收紧、不能放宽操作员的 deny/prompt），
+    且 deny 规则在 `;`/`|`/`&&` 复合行任意段命中即拦。合并我们的 WS2 权限规则时：保留上游
+    整块授权逻辑，把 WS2 的 deny/ask/allow 前置到 `patternRules` 之前，`patternRules` 用
+    `getBashApprovalPatternRules(rawPatterns)` 构造——不要用 ours 覆盖整段，会丢授权链。
+37. **18.18.3 把 `ask` 工具改成 `{html}` 表单**（`questions[]`、QuestionResult、"Other"/"Chat"
+    路径全删；`AskToolDetails` 变成 `{answers[], timedOut?}`）。agent 侧调用形态变了：
+    文档/skill/提示词里教"用 ask 提 questions 数组"的地方要更新；我们的定制层不依赖它，
+    但 8 个自定义工具与 skill 里若出现 ask 用法需同步。
+38. **18.17 起交互语义变了**：`wait` 无新结果 5s 返回（空闲退避到 5m），对端回复等待 5 分钟；
+    子代理禁止 `write agent://all` 广播；`task.workerThreads`（默认 4）把并发子代理放 worker
+    线程；ovnfs 二进制存在时自动启用（grep/glob 走 daemon）。这些不改变我们的合并流程，
+    但会影响对"子代理为何等待/卡住"的判断。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
