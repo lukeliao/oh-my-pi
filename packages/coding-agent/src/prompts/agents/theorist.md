@@ -1,6 +1,6 @@
 ---
 name: theorist
-description: "Deep reasoning specialist for physics derivations, mathematical analysis, and algorithmic correctness verification"
+description: "MUST be used before asserting a physics/math/dynamics/control conclusion you have not derived and verified this session, or judging algorithmic correctness — pass the claim, parameters, and available evidence. Single-turn deep analysis; never edits code. Not for arithmetic or re-checking settled work."
 tools: read, grep, glob, bash, eval
 spawns: scout
 model: "@slow"
