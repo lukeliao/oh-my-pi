@@ -15,7 +15,13 @@ Build a host-native omp bundle that ships the 9 `semble_*` custom tools (`semble
    ```bash
    bun scripts/build-semble-omp-package.ts --model-path "$SEMBLE_MODEL_PATH"
    ```
-4. Copy the output directory (`/media/liao/storage/omp-bundles/omp-*-linux-x64/`) to the target machine (e.g. via `rsync`, `scp`, USB drive).
+   Step 3 builds natives via `bazel-natives host` and then calls `ensureBaselineNative()`: the
+   embed step rejects a `pi_natives.linux-x64-baseline.node` whose
+   `PI_NATIVES_VERSION_STAMP:<ver>` does not match, so the script itself builds the baseline
+   variant (`bazel-natives.ts linux-x64-baseline`, ~10 min cold, needs proxy) whenever the
+   version was bumped. Before/after any build, check that `packages/utils/package.json` is
+   unmodified — a failed step 4 leaves it rewritten with the custom version.
+4. The bundle lands in `~/.local/share/omp-bundles/omp-*-linux-x64/` (default; override with `--out-dir`). `<bundle>/VERSION` holds the version — three machines keep their own `~/.local/share/omp-bundles/` after deploy.
 5. On the target machine, run `./install.sh --force`.
 
 ## On a target machine with only the pre-built bundle
