@@ -256,6 +256,25 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     线程；ovnfs 二进制存在时自动启用（grep/glob 走 daemon）。这些不改变我们的合并流程，
     但会影响对"子代理为何等待/卡住"的判断。
 
+## Hard lessons (2026-11-10, v18.18.6 merge)
+
+39. **打包脚本第 3 步只建 host 变体，上游一升版本就卡在 embed**：
+    `bun --cwd=packages/natives run build` 是 `bazel-natives host`，只产出
+    `pi_natives.linux-x64-modern.node`；而 `packages/natives/scripts/embed-native.ts` 会校验
+    **两个** x64 变体的 `PI_NATIVES_VERSION_STAMP:<版本>`。baseline 停在上一版时第 4 步直接报
+    `does not carry the @oh-my-pi/pi-natives@X.Y.Z version stamp`（本轮 v18.18.3→v18.18.6 复现，
+    整条构建 167s 后失败，前面的 bun/rust 编译白跑）。
+    `scripts/build-semble-omp-package.ts` 现已内置 `ensureBaselineNative()`：缺戳时自动跑
+    `bun scripts/bazel-natives.ts linux-x64-baseline --dest packages/natives/native`
+    （bazel 冷建约 10 分钟，需代理）。**不要**改用 `stamp-native-version.ts` 给陈旧二进制补戳——
+    那会把旧版本的 Rust 符号塞进新版本二进制，运行时才炸。
+40. **构建失败后要手工还原 `packages/utils/package.json`**：第 4 步用「临时改写 version →
+    `finally` 写回」的方式注入 custom 版本，失败路径上实测留下
+    `"version": "18.18.6-custom.<ts>"` 且整文件被 `JSON.stringify(…, null, 2)` 重新格式化成 2 空格。
+    下一轮构建会把这个**被污染的值**当成 `originalVersion`，于是把 custom 版本固化进仓库。
+    规则：每次构建前/后跑 `git diff --stat packages/utils/package.json`，有改动就
+    `git checkout -- packages/utils/package.json`。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）

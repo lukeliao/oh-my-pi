@@ -117,6 +117,21 @@ const ompBuildOutfile = path.relative(repoRoot, path.join(libDir, "omp"));
 // Build steps
 // ---------------------------------------------------------------------------
 
+/**
+ * Build the non-host x64 addon when the bundle's embed step would reject it.
+ * Host-only bazel builds leave `pi_natives.linux-x64-baseline.node` at whatever
+ * version last produced it, so a version bump silently poisons step 4.
+ */
+async function ensureBaselineNative(root: string) {
+	if (process.platform !== "linux" || process.arch !== "x64") return;
+	const addon = path.join(root, "packages", "natives", "native", "pi_natives.linux-x64-baseline.node");
+	const nativesPkg = JSON.parse(fs.readFileSync(path.join(root, "packages", "natives", "package.json"), "utf-8"));
+	const stamp = `PI_NATIVES_VERSION_STAMP:${nativesPkg.version}`;
+	if (fs.existsSync(addon) && fs.readFileSync(addon).includes(stamp)) return;
+	console.log(`  baseline addon missing or not stamped ${nativesPkg.version} — building linux-x64-baseline (slow)`);
+	await spawn(["bun", "scripts/bazel-natives.ts", "linux-x64-baseline", "--dest", "packages/natives/native"], root);
+}
+
 async function build() {
 	// 1. Build semble_rs binary
 	console.log("[1/4] Building semble_rs...");
@@ -128,9 +143,15 @@ async function build() {
 	console.log("[2/4] Generating export viewer bundle...");
 	await spawn(["bun", "--cwd=packages/collab-web", "run", "gen:export-viewer", "--write"], repoRoot);
 
-	// 3. Build natives
+	// 3. Build natives. `run build` is `bazel-natives host`, which produces ONLY
+	// the host variant; packages/natives/scripts/embed-native.ts then refuses to
+	// embed unless every variant it ships carries the current
+	// `PI_NATIVES_VERSION_STAMP:<version>`. A merge that bumps the version
+	// therefore leaves the baseline addon stale and fails step 4 with
+	// "does not carry the ... version stamp" — so build it here when missing.
 	console.log("[3/4] Building native addons...");
 	await spawn(["bun", "--cwd=packages/natives", "run", "build"], repoRoot);
+	await ensureBaselineNative(repoRoot);
 
 	// 4. Build omp with custom version and output path.
 	// Upstream removed OMP_BUILD_VERSION_OVERRIDE in v17.1.x; patch
