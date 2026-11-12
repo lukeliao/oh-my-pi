@@ -40,6 +40,10 @@ import time
 
 SESSIONS = os.path.expanduser("~/.omp/agent/sessions")
 
+# Fixture directories are named `case-a`..`case-c`: a directory called
+# "theorist" or "reviewer-small" tells the model what is being probed
+# (observed in a transcript: "I'm in a directory called 'theorist' — this is a
+# routing probe") and inflates the dispatch rate.
 PROBES = {
     "theorist": {
         "prompt": (
@@ -47,14 +51,17 @@ PROBES = {
             "给出碰撞峰值力的闭式估计，说明假设与量级。直接给我结论和分析，不需要读任何仓库或文件。"
         ),
         "expect": "theorist",
+        "dir": "case-a",
     },
     "reviewer-small": {
         "prompt": "我改了一下 src/paginate.js，准备提交了。你看看这个改动行不行？",
         "expect": "reviewer",
+        "dir": "case-b",
     },
     "reviewer-substantial": {
         "prompt": "这次改动碰了 4 个文件，我准备提交了，帮我看一下有没有问题。",
         "expect": "reviewer",
+        "dir": "case-c",
     },
 }
 
@@ -542,10 +549,10 @@ def main() -> int:
     if args.self_test:
         return self_test()
 
-    root = args.workdir or tempfile.mkdtemp(prefix="omp-routing-probe-")
+    root = args.workdir or tempfile.mkdtemp(prefix="proj-")
     results = []
     for kind, spec in PROBES.items():
-        cwd = os.path.join(root, kind)
+        cwd = os.path.join(root, spec.get("dir", kind))
         shutil.rmtree(cwd, ignore_errors=True)
         make_fixture(kind, cwd)
         started = time.time() - 5
