@@ -25,7 +25,7 @@ Run one agent synchronously.
 {{/if}}
 
 # Delegation
-Use most specific agent.{{#if scoutAvailable}} Read-only research MUST use `scout` only when files unknown.{{/if}} Unverified physics/math/dynamics conclusion → `theorist`. Code change with a diff, before you say done/verified/merged → `reviewer`. Prefer one agent to investigate + edit. Omit `agent` only for default (`{{defaultAgent}}`); NEVER specify it.
+Use most specific agent.{{#if scoutAvailable}} Read-only research MUST use `scout` only when files unknown.{{/if}} Unverified physics/math/dynamics conclusion → `theorist`. Code change with a diff, before you say done/verified/merged or when the user asks you to review it → `reviewer`. Prefer one agent to investigate + edit. Omit `agent` only for default (`{{defaultAgent}}`); NEVER specify it.
 {{#if batchEnabled}}Specialist `agent` selectors belong inside each `tasks[]` item; NEVER put `agent` at the top level.
 {{/if}}
 Shared edits need one integration owner; give each task its files. Set interfaces in {{#if batchEnabled}}`context`{{else}}the task{{/if}}. Every task MUST skip build/lint/tests/formatters mid-flight; run once afterward.
