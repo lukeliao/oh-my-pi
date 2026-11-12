@@ -109,6 +109,11 @@ def main() -> int:
         help="UTC instant; only messages at or after it are counted (ISO, e.g. 2026-11-10T20:00:00)",
     )
     parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument(
+        "--include-scratch",
+        action="store_true",
+        help="also count sessions under /tmp scratch dirs (probe fixtures); off by default",
+    )
     args = parser.parse_args()
     since = parse_since(args.since)
 
@@ -120,6 +125,11 @@ def main() -> int:
     files_scanned = 0
 
     for path in glob.glob(os.path.join(SESSIONS, "**", "*.jsonl"), recursive=True):
+        # Scratch sessions (probe fixtures under /tmp) pollute "real usage" counts:
+        # a routing probe run looks exactly like four organic reviewer dispatches.
+        scratch = os.path.basename(os.path.dirname(path)).startswith("-tmp-")
+        if scratch and not args.include_scratch:
+            continue
         # Coarse gate only: a file last written before `since` cannot hold
         # in-window messages. Per-message timestamps below are authoritative.
         if datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc) < since:
