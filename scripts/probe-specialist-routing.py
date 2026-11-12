@@ -333,25 +333,26 @@ def analyze(session: str) -> dict:
 def receipt_check(session: str, child_text: str) -> str:
     """Did the parent actually receive this child's output?
 
-    Looks for a non-acknowledgement tool result that carries a distinctive slice
-    of the child's own final text. A spawn acknowledgement ("Spawned agent …"),
-    or the child's name appearing in the spawn arguments, does not count.
+    Looks for a distinctive slice of the child's own final text in anything the
+    parent was handed — a `task` acknowledgement, a `wait` completion snapshot, an
+    `agent://` read, or an async-result notice all count as delivery; a spawn
+    acknowledgement ("Spawned agent …") does not.
     """
     if len(child_text.strip()) < 80:
         return "unknown"
     probe = " ".join(child_text.split())[:80]
     for entry in _entries(session):
-        if entry.get("type") != "message":
-            continue
-        message = entry.get("message", {})
-        if message.get("role") != "toolResult" or message.get("toolName") != "task":
-            continue
-        body = " ".join(
-            block.get("text", "")
-            for block in message.get("content", [])
-            if isinstance(block, dict) and block.get("type") == "text"
-        )
-        flat = " ".join(body.split())
+        chunks: list[str] = []
+        message = entry.get("message") or {}
+        if message:
+            chunks.extend(
+                block.get("text", "")
+                for block in message.get("content", [])
+                if isinstance(block, dict) and block.get("type") == "text"
+            )
+        if not chunks and isinstance(entry.get("content"), str):
+            chunks.append(entry["content"])
+        flat = " ".join(" ".join(chunks).split())
         if probe and probe in flat:
             return "received"
     return "not-received"
@@ -488,13 +489,31 @@ def self_test() -> int:
     if receipt_check(session4, body) != "received":
         failures.append("case4: a real result was not recognised as received")
 
+    # Case 5: delivery through a `wait` snapshot (not the task toolResult) counts.
+    session5 = os.path.join(root, "case5", "s.jsonl")
+    _write_session(
+        session5,
+        [
+            _msg("toolResult", [{"type": "text", "text": "Spawned agent `rev` (job `rev`)."}], toolName="task", isError=False),
+            _msg(
+                "toolResult",
+                [{"type": "text", "text": f"## Completed (1)\n### rev [task] — completed\n```\n{body}\n```"}],
+                toolName="wait",
+                isError=False,
+            ),
+        ],
+    )
+    if receipt_check(session5, body) != "received":
+        failures.append("case5: a wait-delivered result was not recognised as received")
+
     shutil.rmtree(root, ignore_errors=True)
     if failures:
         print("SELF-TEST FAILED")
         for line in failures:
             print("  -", line)
         return 1
-    print("self-test ok: 3 false-positive shapes rejected, 1 true result recognised")
+    print("self-test ok: 3 false-positive shapes rejected; result deliveries via the task")
+    print("acknowledgement, a plain result, and a wait snapshot all recognised")
     return 0
 
 
