@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: "MUST be used on a code change that already has a diff (uncommitted change, branch, or PR) — both before you claim it done, verified, or merged, and whenever the user asks you to review such a change. Pass the diff plus what the change is supposed to do. Patch-anchored: reports bugs introduced by the change with file:line. Read-only; never edits or builds. Not for design review or repo-wide audit without a diff."
+description: "MUST be used on a code change that already has a diff (uncommitted change, branch, or PR) — both before you claim it done, verified, or merged, and whenever the user asks you to review such a change. An explicit review request is not small work: review it with this agent, not inline, even when the diff is a few lines in one file. Pass the diff plus what the change is supposed to do. Patch-anchored: reports bugs introduced by the change with file:line. Read-only; never edits or builds. Not for design review or repo-wide audit without a diff."
 tools: read, find, grep, glob, bash, lsp, web_search, ast_grep
 spawns: scout
 model: "@slow"

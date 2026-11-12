@@ -558,25 +558,28 @@ def main() -> int:
         )
         session = newest_session(cwd, started)
         verdict = analyze(session) if session else {"items": [], "children": {}}
-        target = [item for item in verdict["items"] if item["agent"] == spec["expect"]]
+        want = spec["expect"]
+        agents = [item["agent"] for item in verdict["items"]]
+        target = [item for item in verdict["items"] if item["agent"] == want]
         target_names = [item["name"] for item in target if item["name"]]
-        completed = [item["child"]["completed"] for item in target if item["child"]]
-        delivered = bool(completed) and all(completed)
+        delivered = bool(target) and all(item["child"]["completed"] for item in target if item["child"])
         text = ""
         for item in target:
             if item["child"] and item["child"]["text"]:
                 text = item["child"]["text"]
                 break
-        received = receipt_check(session, text) if session else "unknown"
+        received = receipt_check(session, text) if (session and text) else "unknown"
+        ok = proc.returncode == 0 and want in agents and delivered and received == "received"
         results.append(
             {
                 "probe": kind,
-                "expect": spec["expect"],
+                "expect": want,
                 "exit": proc.returncode,
-                "agents": [item["agent"] for item in verdict["items"]],
+                "agents": agents,
                 "target": ",".join(target_names) or "-",
                 "delivered": delivered,
                 "received": received,
+                "ok": ok,
                 "all_children": ",".join(
                     f"{name}:{child['stop']}/{'ok' if child['completed'] else 'EMPTY'}"
                     for name, child in verdict["children"].items()
@@ -586,19 +589,16 @@ def main() -> int:
         )
 
     print()
-    header = f"{'probe':22s} {'expect':10s} {'exit':4s} {'dispatched':22s} {'target':16s} {'child ok':8s} {'received':13s} children"
+    header = f"{'probe':22s} {'expect':10s} {'exit':4s} {'dispatched':22s} {'target':16s} {'child ok':8s} {'received':13s} {'pass':4s} children"
     print(header)
     for row in results:
         print(
             f"{row['probe']:22s} {row['expect']:10s} {row['exit']:<4d} {','.join(row['agents']) or '-':22s} "
-            f"{row['target']:16s} {'yes' if row['delivered'] else 'no':8s} {row['received']:13s} {row['all_children']}"
+            f"{row['target']:16s} {'yes' if row['delivered'] else 'no':8s} {row['received']:13s} "
+            f"{'PASS' if row['ok'] else 'FAIL':4s} {row['all_children']}"
         )
 
-    passed = [
-        row
-        for row in results
-        if row["exit"] == 0 and row["expect"] in row["agents"] and row["delivered"] and row["received"] == "received"
-    ]
+    passed = [row for row in results if row["ok"]]
     print(
         f"\n{len(passed)}/{len(results)} probes passed "
         "(exit 0 + expected specialist dispatched + that child completed + parent received its text)."
