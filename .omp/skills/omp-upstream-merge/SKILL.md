@@ -284,7 +284,11 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
       与 backlinks 一律作用在 `promptContextFiles` 上（`normalizeContextFilesForPrompt(promptContextFiles)`、
       `hasOkfContextFile(promptContextFiles)`），不要再用旧的 `contextFiles` 变量。
     - `prompts/tools/bash.md`：保留上游 `In-process builtins, ahead of PATH: {{join builtins ", "}}.`
-      与我们的 "Blocked in bash（use the owning tool）" 段；`builtins` 由上游 bash.ts 提供。
+      与我们的 "Blocked in bash…" 段；`builtins` 由上游 bash.ts 提供。**措辞必须与拦截器一致**：
+      nudge（`tool: "read"/"write"` 等）只在命令本身就是那条命令时触发，**不扫复合行**；只有拒绝型
+      规则（`tool: "bash"`，如构建纪律）才逐段拦截并整行拒绝。写"任意匹配段拦整行"会把 10-26 已
+      移除的拆分/重试负担重新教给模型（2026-11-13 实测修正，回归见
+      `test/tools/bash-description-policy.test.ts`）。
     - `task.md`：我们的 `# Delegation` 段与 `# Inputs` 有部分重复（合并前既有状态，本轮未改）。
     - OKF 模板仍只在 `project-prompt.md`（+13/−1）；`custom-system-prompt.md` 无 fork 差异（已核）。
 42. **18.18.9 起"显式 bash prompt 规则在 yolo 模式仍生效（即使命中 critical）"**，与我们的
