@@ -6,7 +6,7 @@ In-process builtins, ahead of PATH: {{join builtins ", "}}.
 `async` defers finite results but keeps the deadline (default {{defaultTimeoutSec}}s); `timeout: 0` for watchers and long jobs.
 {{/if}}
 No `head`/`tail`/redirection; output trunc by default, full result at `artifact://<id>`.
-Blocked in bash (use the owning tool): `cat`/`head`/`tail`/`less`/`more` → `read`; `grep`/`rg`/`ag` → `grep`; `find`/`fd` → `glob`; `sed -i`/`perl -i`/`awk -i inplace` → `edit`; `echo >file`/`printf >file` → `write`. Any matching segment blocks the WHOLE compound command — split it instead of chaining.
+Blocked in bash when the command itself is that command (use the owning tool): `cat`/`head`/`tail`/`less`/`more` → `read`; `grep`/`rg`/`ag` → `grep`; `find`/`fd` → `glob`; `sed -i`/`perl -i`/`awk -i inplace` → `edit`; `echo >file`/`printf >file` → `write`. Nudges do not fire inside a compound line; refusal rules block the whole line on any matching segment.
 {{#if hasLaunch}}
 Long-lived services:
 - unique name; ready requires name; no async/timeout; pty defaults true.
