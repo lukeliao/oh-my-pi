@@ -275,6 +275,30 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     规则：每次构建前/后跑 `git diff --stat packages/utils/package.json`，有改动就
     `git checkout -- packages/utils/package.json`。
 
+## Hard lessons (2026-11-13, v18.20.0 merge)
+
+41. **18.19–18.20 上游做了一轮"提示词瘦身"**：默认系统提示精简、`read` 的格式选择器与 URI
+    子路径语法改为按需读（`xd://read/sources`、`xd://read/urls`）、`task` 描述只留交付规则
+    （`proc://`/`job` 过期/`write agent://` 参考随首次 spawn 结果下发）。本轮冲突与解法：
+    - `system-prompt.ts`：上游引入 `promptContextFiles`（closeCodeFence 后），我们的 OKF 归一化
+      与 backlinks 一律作用在 `promptContextFiles` 上（`normalizeContextFilesForPrompt(promptContextFiles)`、
+      `hasOkfContextFile(promptContextFiles)`），不要再用旧的 `contextFiles` 变量。
+    - `prompts/tools/bash.md`：保留上游 `In-process builtins, ahead of PATH: {{join builtins ", "}}.`
+      与我们的 "Blocked in bash（use the owning tool）" 段；`builtins` 由上游 bash.ts 提供。
+    - `task.md`：我们的 `# Delegation` 段与 `# Inputs` 有部分重复（合并前既有状态，本轮未改）。
+    - OKF 模板仍只在 `project-prompt.md`（+13/−1）；`custom-system-prompt.md` 无 fork 差异（已核）。
+42. **18.18.9 起"显式 bash prompt 规则在 yolo 模式仍生效（即使命中 critical）"**，与我们的
+    approval 顺序一致。本轮重放我们自己的 precedence commit 时 `bash.ts` 又冲突一次，
+    合并顺序固定为：interception → 操作员 pattern/authority deny → WS2 deny → 操作员 prompt →
+    critical（非复合）→ WS2 ask → 复合段 critical 扫描 → WS2 allow / 操作员 allow → exec。
+    上游本轮把 critical 检查移到了 prompted 之后，别再按旧顺序写。
+43. **18.19/18.20 的移除项我们都没用**（已核 `.omp/` 与四机 config 各 0 处）：`task.file`/
+    `taskFile`、todo 的 `blocked` 状态与 `blocker` 注记、`/mcp smithery-search|login|logout`。
+    以后写 skill/提示词别再教这些用法。
+44. **新增 `systemPromptTemplates`**（18.19）：模型选择器 → Handlebars 模板文件，可为不同模型
+    定制系统提示并在切换模型时重渲染。它与我们的 OKF 注入并行、可叠加；本轮未采用，若将来
+    要按模型切提示词，注意两者叠加后的顺序与缓存影响。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
