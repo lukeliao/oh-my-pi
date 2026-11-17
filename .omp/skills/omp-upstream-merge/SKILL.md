@@ -303,6 +303,27 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
     定制系统提示并在切换模型时重渲染。它与我们的 OKF 注入并行、可叠加；本轮未采用，若将来
     要按模型切提示词，注意两者叠加后的顺序与缓存影响。
 
+## Hard lessons (2026-11-17, v18.22.0 merge)
+
+45. **解析脚本断言失败后，绝不能接着 `git add` + `--continue`**：本轮用 python 正则解冲突，
+    `assert len(blocks) == 3` 因实际 4 个 hunk 失败退出，但同一条命令里后面的 `git add` /
+    `rebase --continue` 照常执行 → 4 个 `<<<<<<<` 块被静默 commit 进 `bash.ts`（教训 1/2 的
+    第二次复发）。硬性做法：解析与提交分成两条独立命令；提交前跑
+    `grep -rn "^<<<<<<< \|^>>>>>>> " --include="*.ts" --include="*.md" packages/ scripts/ .omp/ docs/`
+    要求输出为空；任何非零退出码就停下，不要 `--continue`。
+46. **18.20.3 删除了 seance**（agent、`/seance`、`task.sourceSession`）。本轮 `agents.ts` 冲突是
+    我们旧 commit 的 `EMBEDDED_AGENT_DEFS` 想把 seance/librarian/theorist 三条加回去——解法：
+    保留 librarian + theorist（上游没有，是我们加的），**丢掉 seance 行**（`prompts/agents/seance.md`
+    已不存在，留着会引用未定义模板）。合并后全仓 0 处 seance 残留引用。
+47. **≥18.20.1 上游已自带我们手写的 authority 优先级逻辑**：`#patternPolicies()` 返回
+    `{session, authority}` 并带 `allowedEnvVars`，语义与我们 2026-11-09 的
+    "项目层可收紧不可放宽" 完全一致。所以我们的 precedence commit 在新基上会退化成交付
+    "WS2 插入点"：冲突时取上游 helper，只补三段 WS2（deny 紧跟 operator deny 之后；
+    ask/allow 放最后）。上游本轮还把 critical 检查移到 prompted 之后，顺序按教训 42。
+48. **18.20.3 起 `bash.patterns` 支持 path-scoped 条目，且 project/`--config` 层由"替换"
+    改为"前置"**；新增 `bash.allowedEnvVars` 与 per-rule `env`。我们的 fleet config 未使用
+    这些键，但写规则文档时要按"前置"语义描述（`docs/tools/bash.md` 本轮已按上游改写合并）。
+
 ## Procedure
 
 ### Phase 1: Fetch & Assess（一条命令）
