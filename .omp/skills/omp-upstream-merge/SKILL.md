@@ -318,8 +318,13 @@ crates/pi-natives/Cargo.toml --package-json-path packages/natives/package.json
 47. **≥18.20.1 上游已自带我们手写的 authority 优先级逻辑**：`#patternPolicies()` 返回
     `{session, authority}` 并带 `allowedEnvVars`，语义与我们 2026-11-09 的
     "项目层可收紧不可放宽" 完全一致。所以我们的 precedence commit 在新基上会退化成交付
-    "WS2 插入点"：冲突时取上游 helper，只补三段 WS2（deny 紧跟 operator deny 之后；
-    ask/allow 放最后）。上游本轮还把 critical 检查移到 prompted 之后，顺序按教训 42。
+    "WS2 插入点"：冲突时取上游 helper，只补三段 WS2。**顺序（2026-11-17 修正）**：
+    operator pattern/authority deny → WS2 deny → operator prompt → **WS2 ask** →
+    critical（非复合）→ 复合段 critical 扫描 → WS2 allow → operator allow → exec。
+    ask 必须在两个 critical 检查**之前**：critical 返回的是无 policy 的 bare override，
+    yolo 会把它解析成 allow（`tools/approval.ts` 的 resolvePolicy），先判 ask 才保得住
+    prompt。allow 仍留在 critical 之后，否则 WS2 allow 会放过危险命令。
+    回归：`test/tools/bash-approval-precedence.test.ts` 的 "WS2 ask vs critical patterns under yolo"。
 48. **18.20.3 起 `bash.patterns` 支持 path-scoped 条目，且 project/`--config` 层由"替换"
     改为"前置"**；新增 `bash.allowedEnvVars` 与 per-rule `env`。我们的 fleet config 未使用
     这些键，但写规则文档时要按"前置"语义描述（`docs/tools/bash.md` 本轮已按上游改写合并）。
