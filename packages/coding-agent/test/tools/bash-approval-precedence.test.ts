@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Settings } from "@oh-my-pi/pi-coding-agent/config/settings";
 import type { ToolSession } from "@oh-my-pi/pi-coding-agent/tools";
+import { resolveApproval } from "@oh-my-pi/pi-coding-agent/tools/approval";
 import { BashTool } from "@oh-my-pi/pi-coding-agent/tools/bash";
 
 /**
@@ -81,5 +82,26 @@ describe("WS2 permission.rules vs operator bash.patterns", () => {
 		const tool = makeTool({ "bash.patterns": [{ match: "mydeploy *", approval: "allow" as const }] });
 		const decision = decisionOf(tool, COMMAND);
 		expect(decision.policy).toBe("allow");
+	});
+});
+
+describe("WS2 ask vs critical patterns under yolo", () => {
+	// A bare critical override carries no `policy`; yolo turns that into `allow`
+	// (tools/approval.ts resolvePolicy). Only an explicit policy survives, so the
+	// WS2 `ask` must be decided before the critical checks or this line is allowed.
+	const CRITICAL_ASK_RULE = { match: "Bash(rm:*)", action: "ask" as const };
+
+	it("prompts on a critical compound line instead of letting yolo allow it", () => {
+		const tool = makeTool({ "tools.approvalMode": "yolo", "permission.rules": [CRITICAL_ASK_RULE] });
+		const decision = decisionOf(tool, "echo hi && rm -rf /");
+		expect(decision.policy).toBe("prompt");
+		const resolved = resolveApproval(tool, { command: "echo hi && rm -rf /" }, "yolo");
+		expect(resolved.policy).toBe("prompt");
+	});
+
+	it("still prompts on a non-compound critical line the same rule covers", () => {
+		const tool = makeTool({ "tools.approvalMode": "yolo", "permission.rules": [CRITICAL_ASK_RULE] });
+		const resolved = resolveApproval(tool, { command: "rm -rf /" }, "yolo");
+		expect(resolved.policy).toBe("prompt");
 	});
 });

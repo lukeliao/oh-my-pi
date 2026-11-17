@@ -746,6 +746,21 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 				reason: `Prompt required by bash pattern: ${prompted.rule.match}`,
 			};
 		}
+		// WS2 `ask` must be resolved BEFORE the critical-pattern checks below: a
+		// bare critical override carries no policy, and yolo turns that into
+		// `allow` (tools/approval.ts). Only an explicit policy survives yolo, so
+		// asking first is what keeps a critical compound line with a WS2 ask rule
+		// from being allowed. `allow` still comes after the critical checks.
+		if (permissionDecision.action === "ask") {
+			return {
+				tier: "exec",
+				override: true,
+				policy: "prompt",
+				reason: permissionDecision.matched
+					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
+					: "Prompt required by permission rule",
+			};
+		}
 		const criticalCommand = command !== "" && CRITICAL_BASH_PATTERNS.some(pattern => pattern.test(command));
 		if (!compoundSegments && criticalCommand) {
 			return { tier: "exec", override: true, reason: "Critical pattern detected" };
@@ -757,18 +772,6 @@ export class BashTool implements AgentTool<BashToolSchema, BashToolDetails> {
 					return { tier: "exec", override: true, reason: "Critical pattern detected" };
 				}
 			}
-		}
-		// `ask`/`allow` come last: they must lose to an operator prompt, a
-		// critical pattern, and any deny above.
-		if (permissionDecision.action === "ask") {
-			return {
-				tier: "exec",
-				override: true,
-				policy: "prompt",
-				reason: permissionDecision.matched
-					? `Prompt required by permission rule: ${permissionDecision.matched.match}`
-					: "Prompt required by permission rule",
-			};
 		}
 		if (permissionDecision.action === "allow") return { tier: "write", policy: "allow" };
 		if (decision.kind === "allow") return { tier: "write", policy: "allow" };
